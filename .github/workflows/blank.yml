@@ -1,0 +1,2724 @@
+# =====================================================================
+#  TURBO - Otimizador com IA local, ADB SEM FIO (sem PC), auto-testador de 34 metodos
+#  ARQUIVO UNICO: salve como  .github/workflows/build.yml  no seu repositorio.
+#  Ele cria o projeto Android inteiro sozinho, compila e publica o APK.
+#  Baixe o APK em: aba "Releases" (direto, sem zip) ou em Actions > Artifacts.
+# =====================================================================
+name: Build Turbo APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
+
+      - name: Gerar projeto Android
+        run: |
+          cat > settings.gradle << 'EOF_0'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+            repositories { google(); mavenCentral(); maven { url 'https://jitpack.io' } }
+          }
+          rootProject.name = "Turbo"
+          include ':app'
+          EOF_0
+          cat > build.gradle << 'EOF_1'
+          plugins { id 'com.android.application' version '8.1.4' apply false }
+          EOF_1
+          cat > gradle.properties << 'EOF_2'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF_2
+          mkdir -p app
+          cat > app/build.gradle << 'EOF_3'
+          plugins { id 'com.android.application' }
+          android {
+            namespace 'com.turbo.a03'
+            compileSdk 34
+            defaultConfig {
+              applicationId "com.turbo.a03"
+              minSdk 26
+              targetSdk 33
+              versionCode 1
+              versionName "1.0"
+            }
+            buildTypes { release { minifyEnabled false } }
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_1_8
+              targetCompatibility JavaVersion.VERSION_1_8
+            }
+            lint { abortOnError false }
+            packaging {
+              resources {
+                excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF', 'META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*', 'META-INF/INDEX.LIST', 'META-INF/*.kotlin_module', 'META-INF/AL2.0', 'META-INF/LGPL2.1']
+              }
+            }
+          }
+          tasks.withType(JavaCompile) { options.encoding = 'UTF-8' }
+          dependencies {
+            implementation 'com.github.MuntashirAkon:libadb-android:3.1.1'
+            implementation 'org.conscrypt:conscrypt-android:2.5.2'
+            implementation 'org.bouncycastle:bcprov-jdk15to18:1.70'
+            implementation 'org.bouncycastle:bcpkix-jdk15to18:1.70'
+            implementation 'androidx.annotation:annotation:1.7.1'
+          }
+          EOF_3
+          mkdir -p app/src/main
+          cat > app/src/main/AndroidManifest.xml << 'EOF_4'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+            <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+            <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES"/>
+            <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+            <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission"/>
+            <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions"/>
+            <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions"/>
+            <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+            <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+            <application
+                android:label="Turbo"
+                android:icon="@drawable/ic_launcher"
+                android:allowBackup="false"
+                android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+              <activity android:name=".MainActivity" android:exported="true"
+                  android:launchMode="singleTop"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden|uiMode|fontScale">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+              <service android:name=".OptService" android:exported="false"/>
+              <receiver android:name=".BootReceiver" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                  <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                </intent-filter>
+              </receiver>
+              <receiver android:name=".PairReceiver" android:exported="false"/>
+            </application>
+          </manifest>
+          EOF_4
+          mkdir -p app/src/main/res/drawable
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF_5'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="48dp" android:height="48dp"
+              android:viewportWidth="48" android:viewportHeight="48">
+            <path android:fillColor="#0B1F3A" android:pathData="M0,0h48v48h-48z"/>
+            <path android:fillColor="#00E5A8" android:pathData="M27,4 L10,27 H22 L20,44 L38,20 H26 Z"/>
+          </vector>
+          EOF_5
+          mkdir -p app/src/main/res/drawable
+          cat > app/src/main/res/drawable/ic_bolt.xml << 'EOF_6'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp"
+              android:viewportWidth="48" android:viewportHeight="48">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M27,4 L10,27 H22 L20,44 L38,20 H26 Z"/>
+          </vector>
+          EOF_6
+          mkdir -p app/src/main/java/com/turbo/a03
+          cat > app/src/main/java/com/turbo/a03/U.java << 'EOF_7'
+          package com.turbo.a03;
+
+          import android.app.ActivityManager;
+          import android.content.ComponentName;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.os.Environment;
+          import android.os.StatFs;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Date;
+          import java.util.Locale;
+
+          final class U {
+            static SharedPreferences p(Context c) {
+              return c.getApplicationContext().getSharedPreferences("turbo", Context.MODE_PRIVATE);
+            }
+
+            private static final ArrayList<String> L = new ArrayList<>();
+
+            static synchronized void log(String s) {
+              String t = new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date()) + "  " + s;
+              L.add(t);
+              while (L.size() > 60) L.remove(0);
+            }
+
+            static synchronized String logText() {
+              StringBuilder b = new StringBuilder();
+              for (int i = L.size() - 1; i >= 0; i--) b.append(L.get(i)).append('\n');
+              return b.length() == 0 ? "(sem eventos ainda)" : b.toString();
+            }
+
+            /** {livre, total, lowMemory(0/1), threshold} */
+            static long[] mem(Context c) {
+              ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
+              ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
+              am.getMemoryInfo(mi);
+              return new long[]{mi.availMem, mi.totalMem, mi.lowMemory ? 1 : 0, mi.threshold};
+            }
+
+            /** {nivel%, temperaturaC, carregando(0/1)} */
+            static float[] batt(Context c) {
+              Intent i = c.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+              if (i == null) return new float[]{0, 0, 0};
+              int l = i.getIntExtra("level", 0);
+              int s = i.getIntExtra("scale", 100);
+              float t = i.getIntExtra("temperature", 0) / 10f;
+              int st = i.getIntExtra("status", 0);
+              boolean ch = st == 2 || st == 5;
+              return new float[]{100f * l / Math.max(1, s), t, ch ? 1 : 0};
+            }
+
+            static long[] disk() {
+              StatFs s = new StatFs(Environment.getDataDirectory().getPath());
+              return new long[]{s.getAvailableBytes(), s.getTotalBytes()};
+            }
+
+            static String mb(long b) {
+              return (b / 1048576L) + " MB";
+            }
+
+            static boolean enabled(Context c) {
+              return p(c).getBoolean("enabled", false);
+            }
+
+            static void setEnabled(Context c, boolean on) {
+              p(c).edit().putBoolean("enabled", on).apply();
+              try {
+                ComponentName cn = new ComponentName(c, BootReceiver.class);
+                c.getPackageManager().setComponentEnabledSetting(cn,
+                    on ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP);
+              } catch (Throwable t) {
+              }
+              Intent i = new Intent(c, OptService.class);
+              if (on) {
+                try {
+                  c.startForegroundService(i);
+                  log("Serviço ligado");
+                } catch (Throwable t) {
+                  log("Não consegui iniciar o serviço: " + t.getMessage());
+                }
+              } else {
+                c.stopService(i);
+                log("Serviço desativado");
+              }
+            }
+          }
+          EOF_7
+          mkdir -p app/src/main/java/com/turbo/a03
+          cat > app/src/main/java/com/turbo/a03/BootReceiver.java << 'EOF_8'
+          package com.turbo.a03;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+
+          public class BootReceiver extends BroadcastReceiver {
+            @Override
+            public void onReceive(Context c, Intent i) {
+              if (U.enabled(c)) {
+                try {
+                  c.startForegroundService(new Intent(c, OptService.class));
+                } catch (Throwable t) {
+                }
+              }
+            }
+          }
+          EOF_8
+          mkdir -p app/src/main/java/com/turbo/a03
+          cat > app/src/main/java/com/turbo/a03/Brain.java << 'EOF_9'
+          package com.turbo.a03;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import java.util.ArrayList;
+          import java.util.Arrays;
+          import java.util.Calendar;
+          import java.util.Iterator;
+          import java.util.Locale;
+
+          /**
+           * IA local: regressão logística com aprendizado ONLINE (SGD).
+           * Aprende a prever "vai faltar RAM nos próximos 3 min?" a partir de uso de RAM,
+           * tendência, temperatura, hora do dia (padrão pessoal) e tela ligada/apagada.
+           * Usa poucos KB de memória, então não gasta a RAM que quer economizar.
+           */
+          final class Brain {
+            static final Brain I = new Brain();
+            static final float[] PRIOR = {-6.5f, 7.5f, 0f, 0f, 0f, 0f};
+
+            float[] w = PRIOR.clone();
+            float[] hp = new float[24];
+            long n = 0;
+            float lastP = 0, lastU = -1, slope = 0, lastUsed = 0;
+            long lastT = 0;
+            boolean loaded = false;
+
+            static final class S {
+              final long t;
+              final float[] x;
+
+              S(long t, float[] x) {
+                this.t = t;
+                this.x = x;
+              }
+            }
+
+            final ArrayList<S> buf = new ArrayList<>();
+            final ArrayList<Long> ev = new ArrayList<>();
+
+            static float sig(float z) {
+              return (float) (1.0 / (1.0 + Math.exp(-Math.max(-30, Math.min(30, z)))));
+            }
+
+            static float dot(float[] a, float[] b) {
+              float s = 0;
+              for (int i = 0; i < a.length; i++) s += a[i] * b[i];
+              return s;
+            }
+
+            synchronized void load(Context c) {
+              if (loaded) return;
+              loaded = true;
+              Arrays.fill(hp, 0.7f);
+              try {
+                SharedPreferences p = U.p(c);
+                String s = p.getString("ai_w", null);
+                if (s != null) {
+                  String[] a = s.split(",");
+                  if (a.length == w.length) for (int i = 0; i < a.length; i++) w[i] = Float.parseFloat(a[i]);
+                }
+                String h = p.getString("ai_hp", null);
+                if (h != null) {
+                  String[] a = h.split(",");
+                  if (a.length == 24) for (int i = 0; i < 24; i++) hp[i] = Float.parseFloat(a[i]);
+                }
+                n = p.getLong("ai_n", 0);
+              } catch (Throwable t) {
+                w = PRIOR.clone();
+                Arrays.fill(hp, 0.7f);
+              }
+            }
+
+            synchronized void save(Context c) {
+              StringBuilder a = new StringBuilder(), b = new StringBuilder();
+              for (int i = 0; i < w.length; i++) a.append(i > 0 ? "," : "").append(w[i]);
+              for (int i = 0; i < 24; i++) b.append(i > 0 ? "," : "").append(hp[i]);
+              U.p(c).edit().putString("ai_w", a.toString()).putString("ai_hp", b.toString()).putLong("ai_n", n).apply();
+            }
+
+            synchronized void reset(Context c) {
+              w = PRIOR.clone();
+              Arrays.fill(hp, 0.7f);
+              n = 0;
+              buf.clear();
+              ev.clear();
+              lastT = 0;
+              lastU = -1;
+              slope = 0;
+              U.p(c).edit().remove("ai_w").remove("ai_hp").remove("ai_n").apply();
+            }
+
+            /** Chamado a cada ciclo do serviço. Retorna o risco (0..1) de falta de RAM em breve. */
+            synchronized float step(Context c, boolean screenOn) {
+              load(c);
+              long[] m = U.mem(c);
+              float u = 1f - (float) m[0] / Math.max(1L, m[1]);
+              lastUsed = u;
+              long now = System.currentTimeMillis();
+              boolean event = m[2] == 1 || m[0] < Math.max(m[3] * 1.5f, m[1] * 0.10f);
+              int hr = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+              hp[hr] = 0.95f * hp[hr] + 0.05f * u;
+              if (lastT > 0 && now > lastT && lastU >= 0) {
+                float per = Math.max((now - lastT) / 60000f, 0.05f);
+                slope = 0.7f * slope + 0.3f * ((u - lastU) / per);
+              }
+              lastU = u;
+              lastT = now;
+              float sl = Math.max(-0.5f, Math.min(0.5f, slope)) * 4f;
+              float[] x = {1f, u, sl, U.batt(c)[1] / 45f, hp[hr], screenOn ? 1f : 0f};
+              float p = sig(dot(w, x));
+              lastP = p;
+              if (event) ev.add(now);
+              buf.add(new S(now, x));
+              final long H = 180000L;
+              boolean trained = false;
+              Iterator<S> it = buf.iterator();
+              while (it.hasNext()) {
+                S s = it.next();
+                if (now - s.t < H) break;
+                float y = 0;
+                for (int k = 0; k < ev.size(); k++) {
+                  long te = ev.get(k);
+                  if (te > s.t && te <= s.t + H) {
+                    y = 1;
+                    break;
+                  }
+                }
+                float pp = sig(dot(w, s.x));
+                float g = (y - pp) * 0.03f;
+                for (int i = 0; i < w.length; i++) {
+                  w[i] = Math.max(-14f, Math.min(14f, w[i] + g * s.x[i]));
+                }
+                n++;
+                trained = true;
+                it.remove();
+              }
+              while (!ev.isEmpty() && now - ev.get(0) > 2 * H) ev.remove(0);
+              if (trained && n % 10 == 0) save(c);
+              return p;
+            }
+
+            synchronized String summary(Context c) {
+              load(c);
+              int hr = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+              return "🧠 IA local (aprende sozinha com seu uso)\n"
+                  + "Amostras aprendidas: " + n + "\n"
+                  + "Risco de faltar RAM agora: " + Math.round(lastP * 100) + "%\n"
+                  + "Uso típico de RAM às " + hr + "h: " + Math.round(hp[hr] * 100) + "%\n"
+                  + String.format(Locale.US, "Pesos: viés %.1f • RAM %.1f • tendência %.1f • calor %.1f", w[0], w[1], w[2], w[3]);
+            }
+          }
+          EOF_9
+          mkdir -p app/src/main/java/com/turbo/a03
+          cat > app/src/main/java/com/turbo/a03/Adb.java << 'EOF_10'
+          package com.turbo.a03;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.util.Base64;
+          import java.io.ByteArrayOutputStream;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.math.BigInteger;
+          import java.net.ConnectException;
+          import java.net.InetSocketAddress;
+          import java.net.Socket;
+          import java.nio.ByteBuffer;
+          import java.nio.ByteOrder;
+          import java.security.KeyFactory;
+          import java.security.KeyPair;
+          import java.security.KeyPairGenerator;
+          import java.security.interfaces.RSAPrivateCrtKey;
+          import java.security.interfaces.RSAPublicKey;
+          import java.security.spec.PKCS8EncodedKeySpec;
+          import java.security.spec.RSAPublicKeySpec;
+          import javax.crypto.Cipher;
+
+          /** Cliente ADB mínimo (protocolo adbd sobre TCP, autenticação RSA). Conecta em 127.0.0.1:porta. */
+          final class Adb {
+            static final int CNXN = 0x4e584e43, AUTH = 0x48545541, OPEN = 0x4e45504f,
+                OKAY = 0x59414b4f, CLSE = 0x45534c43, WRTE = 0x45545257;
+            static final byte[] SHA1_PREFIX = {0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14};
+
+            Socket sk;
+            InputStream in;
+            OutputStream out;
+            int nextId = 1;
+            KeyPair kp;
+
+            static final class Msg {
+              final int cmd, a0, a1;
+              final byte[] d;
+
+              Msg(int c, int a, int b, byte[] d) {
+                this.cmd = c;
+                this.a0 = a;
+                this.a1 = b;
+                this.d = d;
+              }
+            }
+
+            static synchronized KeyPair keys(Context c) throws Exception {
+              SharedPreferences p = U.p(c);
+              String s = p.getString("adbkey", null);
+              KeyFactory kf = KeyFactory.getInstance("RSA");
+              if (s != null) {
+                RSAPrivateCrtKey pr = (RSAPrivateCrtKey) kf.generatePrivate(new PKCS8EncodedKeySpec(Base64.decode(s, Base64.NO_WRAP)));
+                RSAPublicKey pu = (RSAPublicKey) kf.generatePublic(new RSAPublicKeySpec(pr.getModulus(), pr.getPublicExponent()));
+                return new KeyPair(pu, pr);
+              }
+              KeyPairGenerator g = KeyPairGenerator.getInstance("RSA");
+              g.initialize(2048);
+              KeyPair k = g.generateKeyPair();
+              p.edit().putString("adbkey", Base64.encodeToString(k.getPrivate().getEncoded(), Base64.NO_WRAP)).apply();
+              return k;
+            }
+
+            void send(int cmd, int a0, int a1, byte[] data) throws IOException {
+              int len = data == null ? 0 : data.length;
+              int sum = 0;
+              for (int i = 0; i < len; i++) sum += (data[i] & 0xff);
+              ByteBuffer b = ByteBuffer.allocate(24 + len).order(ByteOrder.LITTLE_ENDIAN);
+              b.putInt(cmd).putInt(a0).putInt(a1).putInt(len).putInt(sum).putInt(cmd ^ 0xffffffff);
+              if (len > 0) b.put(data);
+              out.write(b.array());
+              out.flush();
+            }
+
+            byte[] readN(int n) throws IOException {
+              byte[] b = new byte[n];
+              int o = 0;
+              while (o < n) {
+                int r = in.read(b, o, n - o);
+                if (r < 0) throw new IOException("conexão encerrada pelo adbd");
+                o += r;
+              }
+              return b;
+            }
+
+            Msg recv() throws IOException {
+              ByteBuffer h = ByteBuffer.wrap(readN(24)).order(ByteOrder.LITTLE_ENDIAN);
+              int cmd = h.getInt(), a0 = h.getInt(), a1 = h.getInt(), len = h.getInt();
+              if (len < 0 || len > (1 << 20)) throw new IOException("pacote inválido");
+              byte[] d = len > 0 ? readN(len) : new byte[0];
+              return new Msg(cmd, a0, a1, d);
+            }
+
+            byte[] sign(byte[] token) throws Exception {
+              byte[] t = new byte[256];
+              t[0] = 0;
+              t[1] = 1;
+              int padEnd = 256 - 1 - SHA1_PREFIX.length - token.length;
+              for (int i = 2; i < padEnd; i++) t[i] = (byte) 0xff;
+              t[padEnd] = 0;
+              System.arraycopy(SHA1_PREFIX, 0, t, padEnd + 1, SHA1_PREFIX.length);
+              System.arraycopy(token, 0, t, padEnd + 1 + SHA1_PREFIX.length, token.length);
+              Cipher c = Cipher.getInstance("RSA/ECB/NoPadding");
+              c.init(Cipher.ENCRYPT_MODE, kp.getPrivate());
+              return c.doFinal(t);
+            }
+
+            byte[] pub() throws Exception {
+              RSAPublicKey k = (RSAPublicKey) kp.getPublic();
+              BigInteger n = k.getModulus();
+              BigInteger r32 = BigInteger.ONE.shiftLeft(32);
+              int n0inv = n.mod(r32).modInverse(r32).negate().mod(r32).intValue();
+              BigInteger rr = BigInteger.ONE.shiftLeft(4096).mod(n);
+              ByteBuffer b = ByteBuffer.allocate(4 + 4 + 256 + 256 + 4).order(ByteOrder.LITTLE_ENDIAN);
+              b.putInt(64);
+              b.putInt(n0inv);
+              for (int i = 0; i < 64; i++) b.putInt(n.shiftRight(32 * i).intValue());
+              for (int i = 0; i < 64; i++) b.putInt(rr.shiftRight(32 * i).intValue());
+              b.putInt(k.getPublicExponent().intValue());
+              String s = Base64.encodeToString(b.array(), Base64.NO_WRAP) + " turbo@a03\u0000";
+              return s.getBytes("ISO-8859-1");
+            }
+
+            static Adb connect(Context c) throws Exception {
+              int port = U.p(c).getInt("adbport", 5555);
+              Adb a = new Adb();
+              a.kp = keys(c);
+              a.sk = new Socket();
+              a.sk.connect(new InetSocketAddress("127.0.0.1", port), 3000);
+              a.sk.setSoTimeout(90000);
+              a.in = a.sk.getInputStream();
+              a.out = a.sk.getOutputStream();
+              a.send(CNXN, 0x01000000, 4096, "host::\u0000".getBytes("ISO-8859-1"));
+              boolean sig = false, pk = false;
+              while (true) {
+                Msg m = a.recv();
+                if (m.cmd == CNXN) break;
+                if (m.cmd == AUTH && m.a0 == 1) {
+                  if (!sig) {
+                    a.send(AUTH, 2, 0, a.sign(m.d));
+                    sig = true;
+                  } else if (!pk) {
+                    a.send(AUTH, 3, 0, a.pub());
+                    pk = true;
+                  } else {
+                    throw new IOException("autorização negada no celular");
+                  }
+                } else {
+                  throw new IOException("resposta inesperada do adbd");
+                }
+              }
+              return a;
+            }
+
+            String shell(String cmd, int timeoutMs) throws Exception {
+              sk.setSoTimeout(timeoutMs);
+              int lid = nextId++;
+              send(OPEN, lid, 0, ("shell:" + cmd + "\u0000").getBytes("UTF-8"));
+              int rid = 0;
+              ByteArrayOutputStream o = new ByteArrayOutputStream();
+              while (true) {
+                Msg m = recv();
+                if (m.cmd == OKAY) {
+                  rid = m.a0;
+                } else if (m.cmd == WRTE) {
+                  o.write(m.d);
+                  send(OKAY, lid, m.a0, null);
+                } else if (m.cmd == CLSE) {
+                  if (rid == 0) throw new IOException("comando recusado");
+                  break;
+                }
+              }
+              return o.toString("UTF-8");
+            }
+
+            void close() {
+              try {
+                sk.close();
+              } catch (Throwable t) {
+              }
+            }
+
+            /** Usa a Depuração sem fio (sem PC) quando já pareada; senão, o modo antigo (adb tcpip). */
+            static String run(Context c, int timeoutMs, String... cmds) {
+              if (WifiAdb.supported() && WifiAdb.paired(c)) {
+                String w = WifiAdb.run(c, timeoutMs, cmds);
+                if (ok(w) || !U.p(c).getBoolean("legacy_ok", false)) return w;
+              }
+              return runLegacy(c, timeoutMs, cmds);
+            }
+
+            /** Modo antigo: conecta em 127.0.0.1:porta (precisa de "adb tcpip" feito uma vez no PC). */
+            static String runLegacy(Context c, int timeoutMs, String... cmds) {
+              Adb a = null;
+              try {
+                a = connect(c);
+                StringBuilder sb = new StringBuilder();
+                for (String s : cmds) sb.append(a.shell(s, timeoutMs));
+                return sb.toString();
+              } catch (ConnectException e) {
+                return "ERRO ADB: porta fechada. No PC (USB): adb tcpip " + U.p(c).getInt("adbport", 5555);
+              } catch (Throwable e) {
+                return "ERRO ADB: " + e.getMessage();
+              } finally {
+                if (a != null) a.close();
+              }
+            }
+
+            static boolean ok(String r) {
+              return !r.startsWith("ERRO ADB");
+            }
+          }
+          EOF_10
+          mkdir -p app/src/main/java/com/turbo/a03
+          cat > app/src/main/java/com/turbo/a03/Opt.java << 'EOF_11'
+          package com.turbo.a03;
+
+          import android.app.ActivityManager;
+          import android.app.AppOpsManager;
+          import android.app.usage.UsageStats;
+          import android.app.usage.UsageStatsManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.ApplicationInfo;
+          import android.content.pm.PackageManager;
+          import android.content.pm.ResolveInfo;
+          import android.os.Process;
+          import android.provider.Settings;
+          import android.provider.Telephony;
+          import android.telecom.TelecomManager;
+          import java.util.ArrayList;
+          import java.util.Arrays;
+          import java.util.Collections;
+          import java.util.HashMap;
+          import java.util.HashSet;
+          import java.util.List;
+          import java.util.Map;
+          import java.util.Set;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+
+          final class Opt {
+            static String brief(String r) {
+              r = r.trim().replace('\n', ' ');
+              if (r.isEmpty()) return "ok";
+              return r.length() > 90 ? r.substring(0, 90) + "…" : r;
+            }
+
+            static boolean hasUsage(Context c) {
+              try {
+                AppOpsManager a = (AppOpsManager) c.getSystemService(Context.APP_OPS_SERVICE);
+                return a.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), c.getPackageName()) == AppOpsManager.MODE_ALLOWED;
+              } catch (Throwable t) {
+                return false;
+              }
+            }
+
+            /** Apps que NUNCA são fechados: launcher, teclado, telefone, SMS, os que você usa mais e os usados há pouco. */
+            static Set<String> protect(Context c, int top) {
+              HashSet<String> s = new HashSet<>();
+              s.add(c.getPackageName());
+              PackageManager pm = c.getPackageManager();
+              try {
+                ResolveInfo r = pm.resolveActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY);
+                if (r != null && r.activityInfo != null) s.add(r.activityInfo.packageName);
+              } catch (Throwable t) {
+              }
+              try {
+                String ime = Settings.Secure.getString(c.getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
+                if (ime != null && ime.indexOf('/') > 0) s.add(ime.substring(0, ime.indexOf('/')));
+              } catch (Throwable t) {
+              }
+              try {
+                TelecomManager tm = (TelecomManager) c.getSystemService(Context.TELECOM_SERVICE);
+                String d = tm.getDefaultDialerPackage();
+                if (d != null) s.add(d);
+              } catch (Throwable t) {
+              }
+              try {
+                String sm = Telephony.Sms.getDefaultSmsPackage(c);
+                if (sm != null) s.add(sm);
+              } catch (Throwable t) {
+              }
+              s.addAll(U.p(c).getStringSet("whitelist", new HashSet<String>()));
+              if (hasUsage(c)) {
+                try {
+                  UsageStatsManager u = (UsageStatsManager) c.getSystemService(Context.USAGE_STATS_SERVICE);
+                  long now = System.currentTimeMillis();
+                  List<UsageStats> l = u.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 3 * 86400000L, now);
+                  if (l != null) {
+                    HashMap<String, Long> tot = new HashMap<>();
+                    for (UsageStats us : l) {
+                      if (now - us.getLastTimeUsed() < 15 * 60000L) s.add(us.getPackageName());
+                      Long o = tot.get(us.getPackageName());
+                      tot.put(us.getPackageName(), (o == null ? 0L : o) + us.getTotalTimeInForeground());
+                    }
+                    ArrayList<Map.Entry<String, Long>> es = new ArrayList<>(tot.entrySet());
+                    Collections.sort(es, (a, b) -> Long.compare(b.getValue(), a.getValue()));
+                    for (int i = 0; i < es.size() && i < top; i++) s.add(es.get(i).getKey());
+                  }
+                } catch (Throwable t) {
+                }
+              }
+              return s;
+            }
+
+            /** Fecha processos em segundo plano de apps comuns (não mexe em apps de sistema puros). Rodar fora da thread principal. */
+            static long clean(Context c, String why) {
+              int prof = U.p(c).getInt("profile", 1);
+              long before = U.mem(c)[0];
+              ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
+              PackageManager pm = c.getPackageManager();
+              Set<String> keep = protect(c, prof == 2 ? 3 : (prof == 1 ? 6 : 10));
+              int n = 0;
+              for (ApplicationInfo a : pm.getInstalledApplications(0)) {
+                boolean sys = (a.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+                boolean upd = (a.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
+                if (sys && !upd) continue;
+                if (keep.contains(a.packageName)) continue;
+                if ((a.flags & ApplicationInfo.FLAG_STOPPED) != 0) continue;
+                if (upd && pm.getLaunchIntentForPackage(a.packageName) == null) continue;
+                try {
+                  am.killBackgroundProcesses(a.packageName);
+                  n++;
+                } catch (Throwable t) {
+                }
+              }
+              try {
+                Thread.sleep(1200);
+              } catch (Exception e) {
+              }
+              long freed = U.mem(c)[0] - before;
+              U.log("Limpeza (" + why + "): " + n + " apps, " + (freed >= 0 ? "+" : "") + U.mb(freed) + " de RAM");
+              SharedPreferences p = U.p(c);
+              p.edit().putLong("freed_total", p.getLong("freed_total", 0) + Math.max(0, freed)).apply();
+              return freed;
+            }
+
+            // ---------- ADB ----------
+            static void anim(Context c, String v) {
+              String[] k = {"window_animation_scale", "transition_animation_scale", "animator_duration_scale"};
+              boolean ok = true;
+              try {
+                for (String s : k) ok &= Settings.Global.putString(c.getContentResolver(), s, v);
+              } catch (Throwable t) {
+                ok = false;
+              }
+              if (ok) {
+                U.log("Animações " + v + "x aplicadas");
+              } else {
+                String r = Adb.run(c, 15000, "settings put global window_animation_scale " + v,
+                    "settings put global transition_animation_scale " + v, "settings put global animator_duration_scale " + v);
+                U.log("Animações " + v + "x via ADB: " + brief(r));
+              }
+            }
+
+            static void cached(Context c, int n) {
+              String r;
+              if (n <= 0) r = Adb.run(c, 15000, "device_config delete activity_manager max_cached_processes");
+              else r = Adb.run(c, 15000, "device_config put activity_manager max_cached_processes " + n);
+              U.log("Limite de processos em cache " + (n <= 0 ? "padrão" : String.valueOf(n)) + ": " + brief(r));
+            }
+
+            static int[] phys(Context c) {
+              SharedPreferences p = U.p(c);
+              if (p.getInt("pw", 0) > 0) return new int[]{p.getInt("pw", 0), p.getInt("ph", 0), p.getInt("pd", 0)};
+              String r = Adb.run(c, 15000, "wm size", "wm density");
+              Matcher m = Pattern.compile("Physical size: (\\d+)x(\\d+)").matcher(r);
+              Matcher d = Pattern.compile("Physical density: (\\d+)").matcher(r);
+              if (m.find() && d.find()) {
+                int w = Integer.parseInt(m.group(1)), h = Integer.parseInt(m.group(2)), dd = Integer.parseInt(d.group(1));
+                p.edit().putInt("pw", w).putInt("ph", h).putInt("pd", dd).apply();
+                return new int[]{w, h, dd};
+              }
+              U.log("Não li a resolução: " + brief(r));
+              return null;
+            }
+
+            static boolean setRes(Context c, int pct) {
+              int[] ph = phys(c);
+              if (ph == null) return false;
+              SharedPreferences p = U.p(c);
+              if (pct >= 100) {
+                String r = Adb.run(c, 15000, "wm size reset", "wm density reset");
+                p.edit().putBoolean("res_pending", false).apply();
+                U.log("Resolução original: " + brief(r));
+                return true;
+              }
+              int w = Math.round(ph[0] * pct / 100f / 2f) * 2;
+              int h = Math.round(ph[1] * pct / 100f / 2f) * 2;
+              int d = Math.round(ph[2] * pct / 100f);
+              p.edit().putBoolean("res_pending", true).putLong("res_ts", System.currentTimeMillis()).apply();
+              String r = Adb.run(c, 15000, "wm size " + w + "x" + h, "wm density " + d);
+              U.log("Resolução " + pct + "% (" + w + "x" + h + ", " + d + "dpi): " + brief(r));
+              if (!Adb.ok(r)) {
+                p.edit().putBoolean("res_pending", false).apply();
+                return false;
+              }
+              return true;
+            }
+
+            static void keepRes(Context c) {
+              U.p(c).edit().putBoolean("res_pending", false).apply();
+              U.log("Resolução mantida");
+            }
+
+            static void revertRes(Context c) {
+              String r = Adb.run(c, 15000, "wm size reset", "wm density reset");
+              U.p(c).edit().putBoolean("res_pending", false).apply();
+              U.log("Resolução revertida: " + brief(r));
+            }
+
+            /** Rede de segurança: se a resolução nova não foi confirmada, volta sozinha. */
+            static void checkRevert(Context c) {
+              SharedPreferences p = U.p(c);
+              if (p.getBoolean("res_pending", false) && System.currentTimeMillis() - p.getLong("res_ts", 0) > 40000) {
+                U.log("Resolução não confirmada: revertendo");
+                revertRes(c);
+              }
+            }
+
+            static void applyProfile(Context c, int prof) {
+              if (prof == 0) {
+                anim(c, "1.0");
+                cached(c, 0);
+              } else if (prof == 1) {
+                anim(c, "0.5");
+                cached(c, 24);
+              } else {
+                anim(c, "0.25");
+                cached(c, 16);
+              }
+              U.log("Perfil " + new String[]{"Economia", "Equilibrado", "Máximo"}[prof] + " aplicado");
+            }
+
+            static void grantSelf(Context c) {
+              String me = c.getPackageName();
+              String r = Adb.run(c, 20000,
+                  "pm grant " + me + " android.permission.WRITE_SECURE_SETTINGS",
+                  "pm grant " + me + " android.permission.POST_NOTIFICATIONS",
+                  "appops set " + me + " GET_USAGE_STATS allow",
+                  "appops set " + me + " RUN_ANY_IN_BACKGROUND allow",
+                  "dumpsys deviceidle whitelist +" + me);
+              U.log("Permissões automáticas: " + brief(r));
+            }
+
+            static void trimCaches(Context c) {
+              long before = U.disk()[0];
+              String r = Adb.run(c, 120000, "pm trim-caches 128G");
+              long freed = U.disk()[0] - before;
+              U.log("Caches limpos: " + (freed > 0 ? U.mb(freed) + " liberados" : brief(r)));
+            }
+
+            static void dexopt(Context c) {
+              U.log("Compilando apps (pode levar vários minutos)…");
+              String r = Adb.run(c, 1800000, "cmd package compile -m speed-profile -a");
+              U.log("Compilação: " + brief(r));
+            }
+
+            static void applyRestrict(Context c, Set<String> old, Set<String> nw) {
+              ArrayList<String> cmds = new ArrayList<>();
+              for (String p : nw) cmds.add("cmd appops set " + p + " RUN_ANY_IN_BACKGROUND ignore");
+              for (String p : old) if (!nw.contains(p)) cmds.add("cmd appops set " + p + " RUN_ANY_IN_BACKGROUND default");
+              if (cmds.isEmpty()) return;
+              String r = Adb.run(c, 30000, cmds.toArray(new String[0]));
+              U.log("Segundo plano: " + nw.size() + " apps restritos (" + brief(r) + ")");
+            }
+
+            static void restoreAll(Context c) {
+              SharedPreferences p = U.p(c);
+              Set<String> rs = new HashSet<>(p.getStringSet("restricted", new HashSet<String>()));
+              ArrayList<String> cmds = new ArrayList<>(Arrays.asList(
+                  "settings put global window_animation_scale 1.0",
+                  "settings put global transition_animation_scale 1.0",
+                  "settings put global animator_duration_scale 1.0",
+                  "wm size reset", "wm density reset",
+                  "device_config delete activity_manager max_cached_processes"));
+              for (String s : rs) cmds.add("cmd appops set " + s + " RUN_ANY_IN_BACKGROUND default");
+              String r = Adb.run(c, 30000, cmds.toArray(new String[0]));
+              p.edit().putStringSet("restricted", new HashSet<String>()).putBoolean("res_pending", false).apply();
+              U.log("Tudo restaurado: " + brief(r));
+            }
+          }
+          EOF_11
+          mkdir -p app/src/main/java/com/turbo/a03
+          cat > app/src/main/java/com/turbo/a03/OptService.java << 'EOF_12'
+          package com.turbo.a03;
+
+          import android.app.AlarmManager;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.Service;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.graphics.drawable.Icon;
+          import android.os.Handler;
+          import android.os.HandlerThread;
+          import android.os.IBinder;
+          import android.os.PowerManager;
+          import android.os.SystemClock;
+
+          public class OptService extends Service {
+            static final String A_TURBO = "turbo", A_STOP = "stop", CH = "turbo";
+            static volatile boolean running = false;
+            static final float[] THR = {0.65f, 0.45f, 0.30f};
+            static final long[] CD = {300000L, 120000L, 60000L};
+            static final float[] HARD = {0.92f, 0.88f, 0.82f};
+
+            HandlerThread ht;
+            Handler h;
+            PowerManager pw;
+            long lastClean = -10000000L;
+            float lastP = 0;
+            boolean regd = false;
+
+            final BroadcastReceiver scr = new BroadcastReceiver() {
+              @Override
+              public void onReceive(Context c, Intent i) {
+                try {
+                  int prof = U.p(c).getInt("profile", 1);
+                  long[] m = U.mem(c);
+                  float u = 1f - (float) m[0] / Math.max(1L, m[1]);
+                  if (prof >= 1 || u > 0.75f) h.postDelayed(new Runnable() {
+                    public void run() {
+                      doClean("tela apagada");
+                    }
+                  }, 8000);
+                } catch (Throwable t) {
+                }
+              }
+            };
+
+            final Runnable tick = new Runnable() {
+              @Override
+              public void run() {
+                boolean on = true;
+                try {
+                  on = pw.isInteractive();
+                  int prof = U.p(OptService.this).getInt("profile", 1);
+                  float p = Brain.I.step(OptService.this, on);
+                  lastP = p;
+                  long[] m = U.mem(OptService.this);
+                  float u = 1f - (float) m[0] / Math.max(1L, m[1]);
+                  long now = SystemClock.elapsedRealtime();
+                  if (now - lastClean > CD[prof]) {
+                    if (on && (p >= THR[prof] || u > HARD[prof])) doClean("IA " + Math.round(p * 100) + "%");
+                    else if (!on && u > 0.80f) doClean("tela apagada");
+                  }
+                  Opt.checkRevert(OptService.this);
+                  Tuner.tick(OptService.this, on);
+                  m = U.mem(OptService.this);
+                  String txt = "RAM livre " + U.mb(m[0]) + " (" + Math.round(100f * m[0] / Math.max(1L, m[1])) + "%) • risco "
+                      + Math.round(p * 100) + "% • liberado " + U.mb(U.p(OptService.this).getLong("freed_total", 0));
+                  ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).notify(1, notif("Turbo ativo", txt));
+                } catch (Throwable t) {
+                  U.log("ciclo: " + t);
+                }
+                h.postDelayed(this, on ? 15000 : 60000);
+              }
+            };
+
+            void doClean(String why) {
+              try {
+                Opt.clean(this, why);
+                lastClean = SystemClock.elapsedRealtime();
+              } catch (Throwable t) {
+                U.log("erro na limpeza: " + t);
+              }
+            }
+
+            Notification notif(String t, String s) {
+              PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+              PendingIntent pt = PendingIntent.getService(this, 1, new Intent(this, OptService.class).setAction(A_TURBO), PendingIntent.FLAG_IMMUTABLE);
+              PendingIntent ps = PendingIntent.getService(this, 2, new Intent(this, OptService.class).setAction(A_STOP), PendingIntent.FLAG_IMMUTABLE);
+              return new Notification.Builder(this, CH)
+                  .setSmallIcon(R.drawable.ic_bolt)
+                  .setContentTitle(t)
+                  .setContentText(s)
+                  .setStyle(new Notification.BigTextStyle().bigText(s))
+                  .setOngoing(true)
+                  .setOnlyAlertOnce(true)
+                  .setContentIntent(open)
+                  .addAction(new Notification.Action.Builder(Icon.createWithResource(this, R.drawable.ic_bolt), "Turbo", pt).build())
+                  .addAction(new Notification.Action.Builder(Icon.createWithResource(this, R.drawable.ic_bolt), "Desativar", ps).build())
+                  .build();
+            }
+
+            @Override
+            public IBinder onBind(Intent i) {
+              return null;
+            }
+
+            @Override
+            public void onCreate() {
+              super.onCreate();
+              pw = (PowerManager) getSystemService(POWER_SERVICE);
+              NotificationChannel ch = new NotificationChannel(CH, "Turbo", NotificationManager.IMPORTANCE_LOW);
+              ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(ch);
+              ht = new HandlerThread("turbo");
+              ht.start();
+              h = new Handler(ht.getLooper());
+              try {
+                registerReceiver(scr, new IntentFilter(Intent.ACTION_SCREEN_OFF));
+                regd = true;
+              } catch (Throwable t) {
+              }
+              running = true;
+            }
+
+            @Override
+            public int onStartCommand(Intent i, int f, int id) {
+              startForeground(1, notif("Turbo ativo", "Iniciando…"));
+              String a = i == null ? null : i.getAction();
+              if (A_STOP.equals(a)) {
+                U.setEnabled(this, false);
+                return START_NOT_STICKY;
+              }
+              if (!U.enabled(this)) {
+                stopSelf();
+                return START_NOT_STICKY;
+              }
+              if (A_TURBO.equals(a)) {
+                h.post(new Runnable() {
+                  public void run() {
+                    doClean("notificação");
+                  }
+                });
+              }
+              h.removeCallbacks(tick);
+              h.post(tick);
+              return START_STICKY;
+            }
+
+            @Override
+            public void onTrimMemory(int level) {
+              super.onTrimMemory(level);
+              if ((level == 10 || level == 15) && h != null) {
+                h.post(new Runnable() {
+                  public void run() {
+                    if (SystemClock.elapsedRealtime() - lastClean > 30000) doClean("sistema pediu RAM");
+                  }
+                });
+              }
+            }
+
+            @Override
+            public void onTaskRemoved(Intent r) {
+              if (U.enabled(this)) {
+                try {
+                  AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+                  PendingIntent pi = PendingIntent.getForegroundService(this, 9, new Intent(this, OptService.class),
+                      PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
+                  am.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + 3000, pi);
+                } catch (Throwable t) {
+                }
+              }
+            }
+
+            @Override
+            public void onDestroy() {
+              running = false;
+              try {
+                if (regd) unregisterReceiver(scr);
+              } catch (Throwable t) {
+              }
+              if (h != null) h.removeCallbacksAndMessages(null);
+              if (ht != null) ht.quitSafely();
+              stopForeground(true);
+              super.onDestroy();
+            }
+          }
+          EOF_12
+          mkdir -p app/src/main/java/com/turbo/a03
+          cat > app/src/main/java/com/turbo/a03/MainActivity.java << 'EOF_13'
+          package com.turbo.a03;
+
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.ApplicationInfo;
+          import android.content.pm.PackageManager;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.os.PowerManager;
+          import android.provider.Settings;
+          import android.text.InputType;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.LinearLayout;
+          import android.widget.RadioButton;
+          import android.widget.RadioGroup;
+          import android.widget.ScrollView;
+          import android.widget.Switch;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.HashSet;
+          import java.util.List;
+          import java.util.Set;
+
+          public class MainActivity extends Activity {
+            static final int BG = 0xFF0B1220, CARD = 0xFF152036, BTN = 0xFF22324F, ACC = 0xFF00E5A8, TXT = 0xFFE8EEF8, DIM = 0xFF8FA3C0;
+            TextView tvStat, tvSvc, tvAi, tvLog, tvTune;
+            Switch sw;
+            EditText etPort;
+            LinearLayout root;
+            final Handler ui = new Handler(Looper.getMainLooper());
+            Runnable revertTask;
+
+            int dp(int v) {
+              return Math.round(v * getResources().getDisplayMetrics().density);
+            }
+
+            void bg(Runnable r) {
+              new Thread(r).start();
+            }
+
+            void toast(final String s) {
+              runOnUiThread(new Runnable() {
+                public void run() {
+                  Toast.makeText(MainActivity.this, s, Toast.LENGTH_LONG).show();
+                }
+              });
+            }
+
+            TextView text(String s, int sp, int color, boolean bold) {
+              TextView t = new TextView(this);
+              t.setText(s);
+              t.setTextSize(sp);
+              t.setTextColor(color);
+              if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+              return t;
+            }
+
+            LinearLayout card(String title) {
+              LinearLayout c = new LinearLayout(this);
+              c.setOrientation(LinearLayout.VERTICAL);
+              c.setPadding(dp(14), dp(12), dp(14), dp(12));
+              GradientDrawable g = new GradientDrawable();
+              g.setColor(CARD);
+              g.setCornerRadius(dp(14));
+              c.setBackground(g);
+              LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+              lp.setMargins(0, dp(12), 0, 0);
+              root.addView(c, lp);
+              if (title != null) {
+                TextView t = text(title, 15, ACC, true);
+                t.setPadding(0, 0, 0, dp(6));
+                c.addView(t);
+              }
+              return c;
+            }
+
+            Button btn(LinearLayout parent, String label, boolean main, View.OnClickListener l) {
+              Button b = new Button(this);
+              b.setText(label);
+              b.setAllCaps(false);
+              b.setTextColor(main ? 0xFF04201A : TXT);
+              b.setTextSize(14);
+              GradientDrawable g = new GradientDrawable();
+              g.setColor(main ? ACC : BTN);
+              g.setCornerRadius(dp(10));
+              b.setBackground(g);
+              b.setOnClickListener(l);
+              LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(46));
+              lp.setMargins(0, dp(6), 0, 0);
+              parent.addView(b, lp);
+              return b;
+            }
+
+            LinearLayout row(LinearLayout parent) {
+              LinearLayout r = new LinearLayout(this);
+              r.setOrientation(LinearLayout.HORIZONTAL);
+              parent.addView(r, new LinearLayout.LayoutParams(-1, -2));
+              return r;
+            }
+
+            void small(LinearLayout r, String label, View.OnClickListener l) {
+              Button b = new Button(this);
+              b.setText(label);
+              b.setAllCaps(false);
+              b.setTextColor(TXT);
+              b.setTextSize(13);
+              GradientDrawable g = new GradientDrawable();
+              g.setColor(BTN);
+              g.setCornerRadius(dp(10));
+              b.setBackground(g);
+              b.setOnClickListener(l);
+              LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(44), 1f);
+              lp.setMargins(dp(3), dp(6), dp(3), 0);
+              r.addView(b, lp);
+            }
+
+            @Override
+            protected void onCreate(Bundle s) {
+              super.onCreate(s);
+              getWindow().setStatusBarColor(BG);
+              getWindow().setNavigationBarColor(BG);
+              ScrollView sv = new ScrollView(this);
+              sv.setBackgroundColor(BG);
+              root = new LinearLayout(this);
+              root.setOrientation(LinearLayout.VERTICAL);
+              root.setPadding(dp(14), dp(20), dp(14), dp(40));
+              sv.addView(root);
+              setContentView(sv);
+
+              root.addView(text("⚡ TURBO", 28, ACC, true));
+              root.addView(text("Otimizador local com IA • RAM • ADB • sempre ativo", 12, DIM, false));
+
+              // ---- STATUS ----
+              LinearLayout c1 = card("Status");
+              tvStat = text("", 14, TXT, false);
+              c1.addView(tvStat);
+              tvSvc = text("", 12, DIM, false);
+              tvSvc.setPadding(0, dp(8), 0, 0);
+              c1.addView(tvSvc);
+              btn(c1, "⚡ TURBO AGORA (limpar RAM)", true, new View.OnClickListener() {
+                public void onClick(View v) {
+                  bg(new Runnable() {
+                    public void run() {
+                      long f = Opt.clean(MainActivity.this, "manual");
+                      toast("RAM liberada: " + U.mb(Math.max(0, f)));
+                    }
+                  });
+                }
+              });
+
+              // ---- SERVICO ----
+              LinearLayout c2 = card("Sempre ativo");
+              sw = new Switch(this);
+              sw.setText("Manter otimizador rodando (serviço)");
+              sw.setTextColor(TXT);
+              sw.setChecked(U.enabled(this));
+              sw.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+                public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
+                  if (on) askNotif();
+                  U.setEnabled(MainActivity.this, on);
+                }
+              });
+              c2.addView(sw);
+              c2.addView(text("Desligue aqui ou no botão \"Desativar\" da notificação. Ao desligar, o serviço e a inicialização automática são cancelados.", 12, DIM, false));
+              TextView pt = text("Perfil da IA:", 13, TXT, true);
+              pt.setPadding(0, dp(10), 0, 0);
+              c2.addView(pt);
+              RadioGroup rg = new RadioGroup(this);
+              String[] pn = {"Economia (limpa pouco)", "Equilibrado", "Máximo (agressivo)"};
+              for (int i = 0; i < 3; i++) {
+                RadioButton rb = new RadioButton(this);
+                rb.setText(pn[i]);
+                rb.setTextColor(TXT);
+                rb.setId(100 + i);
+                rg.addView(rb);
+              }
+              rg.check(100 + U.p(this).getInt("profile", 1));
+              rg.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+                public void onCheckedChanged(RadioGroup g, int id) {
+                  U.p(MainActivity.this).edit().putInt("profile", id - 100).apply();
+                }
+              });
+              c2.addView(rg);
+              btn(c2, "Aplicar perfil via ADB (animações + processos)", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  bg(new Runnable() {
+                    public void run() {
+                      Opt.applyProfile(MainActivity.this, U.p(MainActivity.this).getInt("profile", 1));
+                      toast("Perfil aplicado");
+                    }
+                  });
+                }
+              });
+
+              // ---- PERMISSOES ----
+              LinearLayout c3 = card("Permissões (para funcionar sempre)");
+              btn(c3, "1) Acesso de uso (IA aprende seus apps)", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+                }
+              });
+              btn(c3, "2) Ignorar otimização de bateria", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  try {
+                    startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
+                  } catch (Throwable t) {
+                    startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                  }
+                }
+              });
+              btn(c3, "3) Permitir notificações", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  askNotif();
+                }
+              });
+              btn(c3, "Apps protegidos (nunca fechar)…", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  pickApps("Proteger da limpeza", "whitelist", new Runnable() {
+                    public void run() {
+                      toast("Salvo");
+                    }
+                  });
+                }
+              });
+
+              // ---- ADB ----
+              LinearLayout c4 = card("ADB sem PC (Depuração sem fio)");
+              TextView how = text("Precisa de Android 11+ e Wi-Fi ligado. Faça só uma vez:\n1) Toque em \"Parear pelo aviso\" (abre as Opções do desenvolvedor).\n2) Ligue \"Depuração sem fio\" e toque em \"Parear dispositivo com código\".\n3) Com essa janela aberta, puxe a barra de notificações e digite o código de 6 dígitos no aviso do Turbo.\nO Turbo conecta sozinho e já se concede as permissões. Depois disso é tudo automático.", 12, DIM, false);
+              c4.addView(how);
+              btn(c4, "1) Parear pelo aviso (sem PC)", true, v -> {
+                WifiAdb.startPairing(MainActivity.this);
+                try {
+                  startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+                } catch (Throwable t) {
+                  toast("Abra as Opções do desenvolvedor manualmente");
+                }
+              });
+              c4.addView(text("Alternativa em tela dividida: digite a porta e o código que aparecem na janela de pareamento.", 12, DIM, false));
+              LinearLayout pr2 = row(c4);
+              final EditText etPp = new EditText(this);
+              etPp.setInputType(InputType.TYPE_CLASS_NUMBER);
+              etPp.setHint("porta");
+              etPp.setTextColor(TXT);
+              etPp.setHintTextColor(DIM);
+              final EditText etPc = new EditText(this);
+              etPc.setInputType(InputType.TYPE_CLASS_NUMBER);
+              etPc.setHint("código");
+              etPc.setTextColor(TXT);
+              etPc.setHintTextColor(DIM);
+              pr2.addView(etPp, new LinearLayout.LayoutParams(0, -2, 1f));
+              pr2.addView(etPc, new LinearLayout.LayoutParams(0, -2, 1f));
+              btn(c4, "Parear manualmente", false, v -> {
+                final String pp = etPp.getText().toString().trim();
+                final String pc = etPc.getText().toString().trim();
+                bg(() -> {
+                  try {
+                    WifiAdb.pairManual(MainActivity.this, Integer.parseInt(pp), pc);
+                  } catch (Throwable t) {
+                    toast("Porta ou código inválidos");
+                  }
+                });
+              });
+              btn(c4, "2) Testar / reconectar ADB", false, v -> {
+                toast("Conectando…");
+                bg(() -> {
+                  String r = Adb.run(MainActivity.this, 30000, "id");
+                  boolean ok = Adb.ok(r);
+                  U.p(MainActivity.this).edit().putBoolean("adb_ok", ok).apply();
+                  U.log(ok ? "ADB conectado: " + Opt.brief(r) : Opt.brief(r));
+                  toast(ok ? "ADB conectado!" : Opt.brief(r));
+                });
+              });
+              btn(c4, "Auto-conceder permissões ao app", false, v -> {
+                bg(() -> {
+                  Opt.grantSelf(MainActivity.this);
+                  toast("Pronto, veja o log");
+                });
+              });
+              TextView old = text("Modo antigo (só se precisar do PC): adb tcpip 5555 e depois toque abaixo.", 12, DIM, false);
+              old.setPadding(0, dp(10), 0, 0);
+              c4.addView(old);
+              LinearLayout pr = row(c4);
+              pr.setGravity(Gravity.CENTER_VERTICAL);
+              pr.addView(text("Porta:", 13, TXT, false));
+              etPort = new EditText(this);
+              etPort.setInputType(InputType.TYPE_CLASS_NUMBER);
+              etPort.setText(String.valueOf(U.p(this).getInt("adbport", 5555)));
+              etPort.setTextColor(TXT);
+              pr.addView(etPort, new LinearLayout.LayoutParams(dp(100), -2));
+              btn(c4, "Conectar pelo modo antigo", false, v -> {
+                try {
+                  U.p(MainActivity.this).edit().putInt("adbport", Integer.parseInt(etPort.getText().toString().trim())).apply();
+                } catch (Throwable t) {
+                }
+                toast("Conectando… aceite o aviso na tela se aparecer");
+                bg(() -> {
+                  String r = Adb.runLegacy(MainActivity.this, 90000, "id");
+                  boolean ok = Adb.ok(r);
+                  U.p(MainActivity.this).edit().putBoolean("adb_ok", ok).putBoolean("legacy_ok", ok).apply();
+                  U.log(ok ? "ADB (modo antigo) conectado: " + Opt.brief(r) : Opt.brief(r));
+                  toast(ok ? "ADB conectado!" : Opt.brief(r));
+                });
+              });
+
+              // ---- FERRAMENTAS ----
+              LinearLayout c5 = card("Ferramentas ADB");
+              c5.addView(text("Resolução da tela (menos pixels = mais rápido). Pede confirmação e volta sozinha em 15 s se você não confirmar.", 12, DIM, false));
+              LinearLayout r1 = row(c5);
+              final int[] pcts = {100, 85, 75, 60};
+              for (int i = 0; i < pcts.length; i++) {
+                final int pc = pcts[i];
+                small(r1, pc + "%", new View.OnClickListener() {
+                  public void onClick(View v) {
+                    bg(new Runnable() {
+                      public void run() {
+                        boolean ok = Opt.setRes(MainActivity.this, pc);
+                        if (ok && pc < 100) {
+                          runOnUiThread(new Runnable() {
+                            public void run() {
+                              confirmRes();
+                            }
+                          });
+                        } else if (!ok) {
+                          toast("Falhou. Conecte o ADB primeiro.");
+                        }
+                      }
+                    });
+                  }
+                });
+              }
+              TextView ta = text("Animações do sistema:", 13, TXT, true);
+              ta.setPadding(0, dp(10), 0, 0);
+              c5.addView(ta);
+              LinearLayout r2 = row(c5);
+              final String[] av = {"1.0", "0.5", "0.25", "0"};
+              final String[] al = {"1x", "0.5x", "0.25x", "Off"};
+              for (int i = 0; i < av.length; i++) {
+                final String v1 = av[i];
+                small(r2, al[i], new View.OnClickListener() {
+                  public void onClick(View v) {
+                    bg(new Runnable() {
+                      public void run() {
+                        Opt.anim(MainActivity.this, v1);
+                        toast("Animações " + v1 + "x");
+                      }
+                    });
+                  }
+                });
+              }
+              TextView tc = text("Máx. de apps mantidos em cache (padrão do Android: 32):", 13, TXT, true);
+              tc.setPadding(0, dp(10), 0, 0);
+              c5.addView(tc);
+              LinearLayout r3 = row(c5);
+              final int[] cv = {0, 24, 16, 8};
+              final String[] cl = {"Padrão", "24", "16", "8"};
+              for (int i = 0; i < cv.length; i++) {
+                final int n = cv[i];
+                small(r3, cl[i], new View.OnClickListener() {
+                  public void onClick(View v) {
+                    bg(new Runnable() {
+                      public void run() {
+                        Opt.cached(MainActivity.this, n);
+                        toast("Aplicado");
+                      }
+                    });
+                  }
+                });
+              }
+              btn(c5, "Limpar cache de todos os apps", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  bg(new Runnable() {
+                    public void run() {
+                      Opt.trimCaches(MainActivity.this);
+                      toast("Veja o log");
+                    }
+                  });
+                }
+              });
+              btn(c5, "Compilar apps (abrem mais rápido)", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  bg(new Runnable() {
+                    public void run() {
+                      Opt.dexopt(MainActivity.this);
+                      toast("Compilação terminou");
+                    }
+                  });
+                }
+              });
+              btn(c5, "Restringir apps em segundo plano…", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  final Set<String> old = new HashSet<String>(U.p(MainActivity.this).getStringSet("restricted", new HashSet<String>()));
+                  pickApps("Bloquear segundo plano", "restricted", new Runnable() {
+                    public void run() {
+                      final Set<String> nw = new HashSet<String>(U.p(MainActivity.this).getStringSet("restricted", new HashSet<String>()));
+                      bg(new Runnable() {
+                        public void run() {
+                          Opt.applyRestrict(MainActivity.this, old, nw);
+                          toast("Aplicado");
+                        }
+                      });
+                    }
+                  });
+                }
+              });
+              btn(c5, "↩ RESTAURAR TUDO ao padrão", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  bg(new Runnable() {
+                    public void run() {
+                      Opt.restoreAll(MainActivity.this);
+                      Tuner.undoAll(MainActivity.this);
+                      toast("Tudo restaurado");
+                    }
+                  });
+                }
+              });
+
+              // ---- AUTO-OTIMIZACAO ----
+              LinearLayout c8 = card("Auto-otimização (" + Methods.ALL.size() + " métodos)");
+              c8.addView(text("O Turbo liga um método por vez, mede a RAM livre e a velocidade do processador, mantém só os que melhoram e desliga os que pioram. No fim do tempo escolhido deixa ativo o conjunto do pico. Tudo via ADB sem fio.", 12, DIM, false));
+              final Switch swT = new Switch(this);
+              swT.setText("Auto-testador ligado");
+              swT.setTextColor(TXT);
+              swT.setChecked(U.p(this).getBoolean("tune_on", false));
+              swT.setOnCheckedChangeListener((b, on) -> {
+                U.p(MainActivity.this).edit().putBoolean("tune_on", on).putBoolean("tune_pending", on).apply();
+                if (on) {
+                  askNotif();
+                  if (!U.enabled(MainActivity.this)) sw.setChecked(true);
+                }
+              });
+              c8.addView(swT);
+              radios(c8, "Tempo de teste até achar o pico:", "tune_secs", new String[]{"1 minuto", "2 minutos", "5 minutos", "10 minutos"}, new int[]{60, 120, 300, 600}, 120);
+              radios(c8, "O que melhorar:", "tune_goal", new String[]{"RAM e processador (equilibrado)", "Mais RAM livre", "Mais velocidade de CPU"}, new int[]{0, 1, 2}, 0);
+              radios(c8, "Re-testar sozinho (tela apagada ou carregando):", "tune_every_h", new String[]{"Nunca", "A cada 6 horas", "A cada 12 horas", "A cada 24 horas"}, new int[]{0, 6, 12, 24}, 0);
+              btn(c8, "▶ Testar métodos agora", true, v -> {
+                final int secs = U.p(MainActivity.this).getInt("tune_secs", 120);
+                toast("Testando por até " + secs + " s. Pode usar o celular normalmente.");
+                bg(() -> Tuner.run(MainActivity.this, secs, "manual"));
+              });
+              btn(c8, "Cancelar teste", false, v -> {
+                Tuner.cancel = true;
+                toast("Cancelando…");
+              });
+              btn(c8, "Desfazer todos os métodos testados", false, v -> {
+                bg(() -> {
+                  Tuner.undoAll(MainActivity.this);
+                  toast("Métodos desfeitos");
+                });
+              });
+              final Switch swR = new Switch(this);
+              swR.setText("Renderizador gráfico leve (Skia GL)");
+              swR.setTextColor(TXT);
+              swR.setPadding(0, dp(10), 0, 0);
+              swR.setChecked(U.p(this).getBoolean("render_on", false));
+              swR.setOnCheckedChangeListener((b, on) -> {
+                U.p(MainActivity.this).edit().putBoolean("render_on", on).apply();
+                if (on && !U.enabled(MainActivity.this)) sw.setChecked(true);
+                bg(() -> Tuner.renderer(MainActivity.this, on));
+              });
+              c8.addView(swR);
+              c8.addView(text("Define o renderizador da interface por propriedade do sistema. Vale para apps abertos depois e pode não mudar nada se seu Android já usa Skia GL. Desligue a chave para voltar ao padrão.", 12, DIM, false));
+              tvTune = text("", 12, TXT, false);
+              tvTune.setPadding(0, dp(10), 0, 0);
+              c8.addView(tvTune);
+
+              // ---- IA ----
+              LinearLayout c6 = card("IA local");
+              tvAi = text("", 12, TXT, false);
+              c6.addView(tvAi);
+              btn(c6, "Resetar aprendizado da IA", false, new View.OnClickListener() {
+                public void onClick(View v) {
+                  Brain.I.reset(MainActivity.this);
+                  toast("IA resetada");
+                }
+              });
+
+              // ---- LOG ----
+              LinearLayout c7 = card("Log");
+              tvLog = text("", 11, DIM, false);
+              tvLog.setTypeface(Typeface.MONOSPACE);
+              tvLog.setTextIsSelectable(true);
+              c7.addView(tvLog);
+
+              if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                askNotif();
+              }
+              if (U.enabled(this) && !OptService.running) U.setEnabled(this, true);
+            }
+
+            void radios(LinearLayout parent, String title, final String key, String[] labels, final int[] values, int def) {
+              TextView t = text(title, 13, TXT, true);
+              t.setPadding(0, dp(10), 0, 0);
+              parent.addView(t);
+              RadioGroup g = new RadioGroup(this);
+              int cur = U.p(this).getInt(key, def);
+              for (int i = 0; i < labels.length; i++) {
+                RadioButton rb = new RadioButton(this);
+                rb.setText(labels[i]);
+                rb.setTextColor(TXT);
+                rb.setId(1000 + i);
+                g.addView(rb);
+                if (values[i] == cur) g.check(1000 + i);
+              }
+              g.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+                public void onCheckedChanged(RadioGroup gr, int id) {
+                  U.p(MainActivity.this).edit().putInt(key, values[id - 1000]).apply();
+                }
+              });
+              parent.addView(g);
+            }
+
+            void askNotif() {
+              if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
+              }
+            }
+
+            void confirmRes() {
+              final AlertDialog[] d = new AlertDialog[1];
+              revertTask = new Runnable() {
+                public void run() {
+                  bg(new Runnable() {
+                    public void run() {
+                      Opt.revertRes(MainActivity.this);
+                    }
+                  });
+                  try {
+                    if (d[0] != null) d[0].dismiss();
+                  } catch (Throwable t) {
+                  }
+                }
+              };
+              d[0] = new AlertDialog.Builder(this)
+                  .setTitle("Manter esta resolução?")
+                  .setMessage("Se você não confirmar em 15 segundos, volta ao normal sozinha.")
+                  .setCancelable(false)
+                  .setPositiveButton("Manter", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface x, int w) {
+                      ui.removeCallbacks(revertTask);
+                      Opt.keepRes(MainActivity.this);
+                    }
+                  })
+                  .setNegativeButton("Reverter", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface x, int w) {
+                      ui.removeCallbacks(revertTask);
+                      bg(new Runnable() {
+                        public void run() {
+                          Opt.revertRes(MainActivity.this);
+                        }
+                      });
+                    }
+                  })
+                  .show();
+              ui.postDelayed(revertTask, 15000);
+            }
+
+            void pickApps(String title, final String key, final Runnable after) {
+              final PackageManager pm = getPackageManager();
+              List<ApplicationInfo> l = pm.getInstalledApplications(0);
+              Collections.sort(l, new java.util.Comparator<ApplicationInfo>() {
+                public int compare(ApplicationInfo a, ApplicationInfo b) {
+                  return pm.getApplicationLabel(a).toString().compareToIgnoreCase(pm.getApplicationLabel(b).toString());
+                }
+              });
+              Set<String> cur = new HashSet<String>(U.p(this).getStringSet(key, new HashSet<String>()));
+              final ArrayList<String> pk = new ArrayList<>();
+              ArrayList<String> lb = new ArrayList<>();
+              for (ApplicationInfo a : l) {
+                boolean sys = (a.flags & ApplicationInfo.FLAG_SYSTEM) != 0 && (a.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
+                if (sys || a.packageName.equals(getPackageName()) || pm.getLaunchIntentForPackage(a.packageName) == null) continue;
+                pk.add(a.packageName);
+                lb.add(pm.getApplicationLabel(a).toString());
+              }
+              final boolean[] ch = new boolean[pk.size()];
+              for (int i = 0; i < ch.length; i++) ch[i] = cur.contains(pk.get(i));
+              new AlertDialog.Builder(this)
+                  .setTitle(title)
+                  .setMultiChoiceItems(lb.toArray(new String[0]), ch, new android.content.DialogInterface.OnMultiChoiceClickListener() {
+                    public void onClick(android.content.DialogInterface d, int i, boolean on) {
+                      ch[i] = on;
+                    }
+                  })
+                  .setPositiveButton("OK", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                      HashSet<String> n = new HashSet<>();
+                      for (int i = 0; i < ch.length; i++) if (ch[i]) n.add(pk.get(i));
+                      U.p(MainActivity.this).edit().putStringSet(key, n).apply();
+                      after.run();
+                    }
+                  })
+                  .setNegativeButton("Cancelar", null)
+                  .show();
+            }
+
+            void upd() {
+              long[] m = U.mem(this);
+              long[] d = U.disk();
+              float[] b = U.batt(this);
+              tvStat.setText("RAM livre: " + U.mb(m[0]) + " de " + U.mb(m[1]) + " (" + Math.round(100f * m[0] / Math.max(1L, m[1])) + "%)\n"
+                  + "Armazenamento livre: " + U.mb(d[0]) + " de " + U.mb(d[1]) + "\n"
+                  + "Bateria: " + Math.round(b[0]) + "% • " + b[1] + " °C" + (b[2] > 0 ? " (carregando)" : "") + "\n"
+                  + "RAM liberada pelo app (total): " + U.mb(U.p(this).getLong("freed_total", 0)));
+              boolean bat = false;
+              try {
+                bat = ((PowerManager) getSystemService(POWER_SERVICE)).isIgnoringBatteryOptimizations(getPackageName());
+              } catch (Throwable t) {
+              }
+              tvSvc.setText("Serviço: " + (OptService.running ? "ATIVO" : "desativado")
+                  + "  •  ADB: " + (U.p(this).getBoolean("adb_ok", false) ? "autorizado" : "não conectado")
+                  + "\nAcesso de uso: " + (Opt.hasUsage(this) ? "ok" : "falta")
+                  + "  •  Bateria irrestrita: " + (bat ? "ok" : "falta"));
+              tvAi.setText(Brain.I.summary(this));
+              tvTune.setText(Tuner.report(this));
+              tvLog.setText(U.logText());
+            }
+
+            final Runnable refresh = new Runnable() {
+              public void run() {
+                try {
+                  upd();
+                } catch (Throwable t) {
+                }
+                ui.postDelayed(this, 2000);
+              }
+            };
+
+            @Override
+            protected void onResume() {
+              super.onResume();
+              sw.setChecked(U.enabled(this));
+              ui.post(refresh);
+            }
+
+            @Override
+            protected void onPause() {
+              super.onPause();
+              ui.removeCallbacks(refresh);
+            }
+          }
+          EOF_13
+          cat > app/src/main/java/com/turbo/a03/Methods.java << 'EOF_14'
+          package com.turbo.a03;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.content.pm.ApplicationInfo;
+          import android.content.pm.PackageManager;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.Comparator;
+          import java.util.HashMap;
+          import java.util.HashSet;
+          import java.util.Random;
+          import java.util.Set;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+
+          /** Catálogo de métodos que o auto-testador liga/desliga e mede (RAM livre + velocidade da CPU). */
+          final class Methods {
+            static final int ST = 0, RESTRICT = 1, BUCKET = 2, KILLHEAVY = 3, TRIM = 4, CLEAN = 5, IDLE = 6;
+            static final Pattern SET = Pattern.compile("^settings put (global|system|secure) (\\S+) ");
+
+            static final class M {
+              final String id, label, group;
+              final int kind;
+              final String[] on, off;
+
+              M(String id, String label, String group, int kind, String[] on, String[] off) {
+                this.id = id;
+                this.label = label;
+                this.group = group;
+                this.kind = kind;
+                this.on = on;
+                this.off = off;
+              }
+
+              /** Ação pontual (não tem "desligar"): limpar, compactar, manutenção. */
+              boolean action() {
+                return kind == KILLHEAVY || kind == TRIM || kind == CLEAN || kind == IDLE;
+              }
+            }
+
+            static final ArrayList<M> ALL = new ArrayList<>();
+
+            static void st(String id, String label, String group, String on, String off) {
+              ALL.add(new M(id, label, group, ST, on.split(";;"), off.split(";;")));
+            }
+
+            static void dyn(String id, String label, int kind) {
+              ALL.add(new M(id, label, null, kind, new String[0], new String[0]));
+            }
+
+            static {
+              st("anim_win", "Animação de janelas 0.5x", null, "settings put global window_animation_scale 0.5", "settings put global window_animation_scale 1.0");
+              st("anim_trans", "Animação de transição 0.5x", null, "settings put global transition_animation_scale 0.5", "settings put global transition_animation_scale 1.0");
+              st("anim_dur", "Duração das animações 0.5x", null, "settings put global animator_duration_scale 0.5", "settings put global animator_duration_scale 1.0");
+              st("cache24", "Máx. 24 apps em cache", "cache", "device_config put activity_manager max_cached_processes 24", "device_config delete activity_manager max_cached_processes");
+              st("cache16", "Máx. 16 apps em cache", "cache", "device_config put activity_manager max_cached_processes 16", "device_config delete activity_manager max_cached_processes");
+              st("cache12", "Máx. 12 apps em cache", "cache", "device_config put activity_manager max_cached_processes 12", "device_config delete activity_manager max_cached_processes");
+              st("cache8", "Máx. 8 apps em cache", "cache", "device_config put activity_manager max_cached_processes 8", "device_config delete activity_manager max_cached_processes");
+              st("fin_act", "Não manter atividades em 2º plano", null, "settings put global always_finish_activities 1", "settings put global always_finish_activities 0");
+              st("lowpower", "Modo economia do sistema", null, "settings put global low_power 1", "settings put global low_power 0");
+              st("freezer", "Congelar apps em cache", null, "settings put global cached_apps_freezer enabled", "settings delete global cached_apps_freezer");
+              st("freezer2", "Congelador (flag nativa)", null, "device_config put activity_manager_native_boot use_freezer true", "device_config delete activity_manager_native_boot use_freezer");
+              st("compact", "Compactação de memória dos apps", null, "device_config put activity_manager use_compaction true", "device_config delete activity_manager use_compaction");
+              st("memfactor", "Pressão de memória moderada", null, "am memory-factor set MODERATE", "am memory-factor reset");
+              st("fixedperf", "Modo desempenho fixo", null, "cmd power set-fixed-performance-mode-enabled true", "cmd power set-fixed-performance-mode-enabled false");
+              st("adaptpower", "Sem economia adaptativa", null, "cmd power set-adaptive-power-saver-enabled false", "cmd power set-adaptive-power-saver-enabled true");
+              st("datasaver", "Economia de dados (rede em 2º plano)", null, "cmd netpolicy set restrict-background true", "cmd netpolicy set restrict-background false");
+              st("ble", "Sem varredura Bluetooth em 2º plano", null, "settings put global ble_scan_always_enabled 0", "settings put global ble_scan_always_enabled 1");
+              st("wscan", "Sem varredura Wi-Fi em 2º plano", null, "settings put global wifi_scan_always_enabled 0", "settings put global wifi_scan_always_enabled 1");
+              st("wwake", "Wi-Fi sem despertar automático", null, "settings put global wifi_wakeup_enabled 0", "settings put global wifi_wakeup_enabled 1");
+              st("netrec", "Sem recomendações de rede", null, "settings put global network_recommendations_enabled 0", "settings put global network_recommendations_enabled 1");
+              st("wnotif", "Sem aviso de redes Wi-Fi abertas", null, "settings put global wifi_networks_available_notification_on 0", "settings put global wifi_networks_available_notification_on 1");
+              st("mobile", "Dados móveis sem ficar sempre ativos", null, "settings put global mobile_data_always_on 0", "settings put global mobile_data_always_on 1");
+              st("actlog", "Sem log de início de atividades", null, "settings put global activity_starts_logging_enabled 0", "settings put global activity_starts_logging_enabled 1");
+              st("logbuf", "Buffer de log pequeno (64K)", null, "logcat -G 64K", "logcat -G 256K");
+              st("perfprop", "Propriedade debug.performance.tuning", null, "setprop debug.performance.tuning 1", "setprop debug.performance.tuning 0");
+              st("sem_cpu", "Resposta de CPU melhorada (Samsung)", null, "settings put global sem_enhanced_cpu_responsiveness 1", "settings delete global sem_enhanced_cpu_responsiveness");
+              st("doze", "Soneca (Doze) mais cedo", null,
+                  "settings put global device_idle_constants inactive_to=30000,sensing_to=0,locating_to=0,light_after_inactive_to=15000,idle_after_inactive_to=30000",
+                  "settings delete global device_idle_constants");
+              st("alarm", "Alarmes agrupados (menos despertares)", null, "settings put global alarm_manager_constants min_interval=120000", "settings delete global alarm_manager_constants");
+              dyn("restrict_heavy", "Bloquear 2º plano dos 5 apps mais pesados", RESTRICT);
+              dyn("bucket_heavy", "Apps pesados em modo restrito", BUCKET);
+              dyn("trim_all", "Pedir aos apps que liberem memória", TRIM);
+              dyn("kill_heavy", "Encerrar apps pesados em 2º plano", KILLHEAVY);
+              dyn("clean", "Limpeza de RAM do Turbo", CLEAN);
+              dyn("idle_maint", "Manutenção ociosa do sistema", IDLE);
+            }
+
+            static M byId(String id) {
+              for (M m : ALL) if (m.id.equals(id)) return m;
+              return null;
+            }
+
+            /** Saída que indica comando inexistente / sem permissão neste aparelho. */
+            static boolean bad(String r) {
+              if (r == null) return true;
+              if (!Adb.ok(r)) return true;
+              String s = r.toLowerCase();
+              return s.contains("exception") || s.contains("unknown command") || s.contains("unknown option")
+                  || s.contains("not found") || s.contains("permission denied") || s.contains("error:")
+                  || s.contains("usage:") || s.contains("inaccessible") || s.contains("aborted") || s.contains("not allowed");
+            }
+
+            /** Apps de terceiros que mais usam memória agora (fora os protegidos). */
+            static ArrayList<String> heavy(Context c, int n) {
+              ArrayList<String> out = new ArrayList<>();
+              String r = Adb.run(c, 45000, "dumpsys meminfo");
+              if (!Adb.ok(r)) return out;
+              int from = r.indexOf("Total PSS by process");
+              if (from < 0) return out;
+              int to = r.indexOf("Total PSS by OOM adjustment", from);
+              String sec = to > 0 ? r.substring(from, to) : r.substring(from);
+              PackageManager pm = c.getPackageManager();
+              Set<String> keep = Opt.protect(c, 6);
+              Matcher m = Pattern.compile("(?m)^\\s*[\\d.,]+K: ([\\w.]+)").matcher(sec);
+              while (m.find() && out.size() < n) {
+                String pk = m.group(1);
+                if (keep.contains(pk) || out.contains(pk)) continue;
+                try {
+                  ApplicationInfo a = pm.getApplicationInfo(pk, 0);
+                  boolean sys = (a.flags & ApplicationInfo.FLAG_SYSTEM) != 0 && (a.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
+                  if (!sys) out.add(pk);
+                } catch (Throwable t) {
+                }
+              }
+              return out;
+            }
+
+            static String apply(Context c, M m) {
+              SharedPreferences p = U.p(c);
+              switch (m.kind) {
+                case ST: {
+                  SharedPreferences.Editor e = p.edit();
+                  for (int i = 0; i < m.on.length; i++) {
+                    Matcher k = SET.matcher(m.on[i]);
+                    if (k.find() && !p.contains("orig_" + m.id + "_" + i)) {
+                      String cur = Adb.run(c, 10000, "settings get " + k.group(1) + " " + k.group(2)).trim();
+                      if (Adb.ok(cur)) e.putString("orig_" + m.id + "_" + i, cur);
+                    }
+                  }
+                  e.apply();
+                  return Adb.run(c, 30000, m.on);
+                }
+                case RESTRICT:
+                case BUCKET: {
+                  ArrayList<String> h = heavy(c, 5);
+                  p.edit().putStringSet("tmp_" + m.id, new HashSet<String>(h)).apply();
+                  ArrayList<String> cmds = new ArrayList<>();
+                  for (String pk : h) {
+                    cmds.add(m.kind == RESTRICT ? "cmd appops set " + pk + " RUN_ANY_IN_BACKGROUND ignore" : "am set-standby-bucket " + pk + " restricted");
+                  }
+                  if (cmds.isEmpty()) return "ok";
+                  return Adb.run(c, 30000, cmds.toArray(new String[0]));
+                }
+                case KILLHEAVY: {
+                  ArrayList<String> cmds = new ArrayList<>();
+                  for (String pk : heavy(c, 6)) cmds.add("am kill " + pk);
+                  if (cmds.isEmpty()) return "ok";
+                  return Adb.run(c, 30000, cmds.toArray(new String[0]));
+                }
+                case TRIM: {
+                  ArrayList<String> cmds = new ArrayList<>();
+                  for (String pk : heavy(c, 15)) cmds.add("am send-trim-memory --user 0 " + pk + " COMPLETE");
+                  if (cmds.isEmpty()) return "ok";
+                  return Adb.run(c, 30000, cmds.toArray(new String[0]));
+                }
+                case CLEAN:
+                  Opt.clean(c, "auto-testador");
+                  return "ok";
+                case IDLE:
+                  return Adb.run(c, 60000, "cmd activity idle-maintenance");
+                default:
+                  return "ok";
+              }
+            }
+
+            static String revert(Context c, M m) {
+              SharedPreferences p = U.p(c);
+              switch (m.kind) {
+                case ST: {
+                  ArrayList<String> cmds = new ArrayList<>();
+                  SharedPreferences.Editor e = p.edit();
+                  for (int i = 0; i < m.on.length; i++) {
+                    String key = "orig_" + m.id + "_" + i;
+                    String o = p.getString(key, null);
+                    Matcher k = SET.matcher(m.on[i]);
+                    if (k.find() && o != null) {
+                      if (o.isEmpty() || o.equals("null")) cmds.add("settings delete " + k.group(1) + " " + k.group(2));
+                      else cmds.add("settings put " + k.group(1) + " " + k.group(2) + " '" + o.replace("'", "") + "'");
+                    } else {
+                      cmds.add(m.off[Math.min(i, m.off.length - 1)]);
+                    }
+                    e.remove(key);
+                  }
+                  e.apply();
+                  return Adb.run(c, 30000, cmds.toArray(new String[0]));
+                }
+                case RESTRICT:
+                case BUCKET: {
+                  Set<String> h = p.getStringSet("tmp_" + m.id, new HashSet<String>());
+                  ArrayList<String> cmds = new ArrayList<>();
+                  for (String pk : h) {
+                    cmds.add(m.kind == RESTRICT ? "cmd appops set " + pk + " RUN_ANY_IN_BACKGROUND default" : "am set-standby-bucket " + pk + " working_set");
+                  }
+                  p.edit().remove("tmp_" + m.id).apply();
+                  if (cmds.isEmpty()) return "ok";
+                  return Adb.run(c, 30000, cmds.toArray(new String[0]));
+                }
+                default:
+                  return "ok";
+              }
+            }
+
+            /** Ordem de teste: o que mais deu certo neste aparelho primeiro; ações pontuais por último. */
+            static ArrayList<M> order(Context c, Set<String> active) {
+              SharedPreferences p = U.p(c);
+              Set<String> un = p.getStringSet("tune_unsup", new HashSet<String>());
+              final HashMap<String, Float> sc = new HashMap<>();
+              Random rnd = new Random();
+              ArrayList<M> a = new ArrayList<>(), b = new ArrayList<>();
+              for (M m : ALL) {
+                if (un.contains(m.id) || active.contains(m.id)) continue;
+                int w = p.getInt("ts_w_" + m.id, 0), t = p.getInt("ts_t_" + m.id, 0);
+                sc.put(m.id, (w + 1f) / (t + 2f) + rnd.nextFloat() * 0.15f);
+                if (m.action()) b.add(m);
+                else a.add(m);
+              }
+              Comparator<M> cmp = new Comparator<M>() {
+                public int compare(M x, M y) {
+                  return Float.compare(sc.get(y.id), sc.get(x.id));
+                }
+              };
+              Collections.sort(a, cmp);
+              Collections.sort(b, cmp);
+              a.addAll(b);
+              return a;
+            }
+          }
+          EOF_14
+          cat > app/src/main/java/com/turbo/a03/Tuner.java << 'EOF_15'
+          package com.turbo.a03;
+
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.content.SharedPreferences;
+          import android.os.SystemClock;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Arrays;
+          import java.util.Date;
+          import java.util.HashSet;
+          import java.util.Locale;
+          import java.util.Set;
+          import java.util.concurrent.atomic.AtomicBoolean;
+
+          /**
+           * Auto-testador: liga um método por vez, mede RAM livre + velocidade da CPU, mantém só o que melhora
+           * (sempre crescente), desativa o que piora, poda o que não contribui e termina deixando o conjunto do pico.
+           */
+          final class Tuner {
+            static final AtomicBoolean busy = new AtomicBoolean(false);
+            static volatile boolean cancel = false;
+            static volatile String status = "parado";
+            static volatile boolean reapplied = false;
+            static volatile long lastTry = 0;
+
+            static void nap(long ms) {
+              try {
+                Thread.sleep(ms);
+              } catch (InterruptedException e) {
+              }
+            }
+
+            /** Mini benchmark de CPU (todos os núcleos). Retorna operações por ms: mais alto = processador mais rápido. */
+            static float bench() {
+              final int nt = Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors()));
+              final int it = 6000000;
+              final long[] sink = new long[nt];
+              Thread[] ts = new Thread[nt];
+              long t0 = System.nanoTime();
+              for (int i = 0; i < nt; i++) {
+                final int ix = i;
+                ts[i] = new Thread(new Runnable() {
+                  public void run() {
+                    long x = 88172645463325252L + ix;
+                    double d = 1.0;
+                    for (int k = 0; k < it; k++) {
+                      x ^= x << 13;
+                      x ^= x >>> 7;
+                      x ^= x << 17;
+                      d = d * 1.0000001 + (x & 7);
+                    }
+                    sink[ix] = x + (long) d;
+                  }
+                });
+                ts[i].start();
+              }
+              for (int i = 0; i < nt; i++) {
+                try {
+                  ts[i].join();
+                } catch (InterruptedException e) {
+                }
+              }
+              double ms = Math.max(1.0, (System.nanoTime() - t0) / 1e6);
+              return (float) ((double) nt * it / ms);
+            }
+
+            /** {RAM livre em MB, CPU} usando a mediana de 3 leituras. */
+            static float[] sample(Context c) {
+              float[] r = new float[3], p = new float[3];
+              for (int i = 0; i < 3; i++) {
+                r[i] = U.mem(c)[0] / 1048576f;
+                p[i] = bench();
+                nap(250);
+              }
+              Arrays.sort(r);
+              Arrays.sort(p);
+              return new float[]{r[1], p[1]};
+            }
+
+            static float[] weights(Context c) {
+              int g = U.p(c).getInt("tune_goal", 0);
+              if (g == 1) return new float[]{0.8f, 0.2f};
+              if (g == 2) return new float[]{0.2f, 0.8f};
+              return new float[]{0.5f, 0.5f};
+            }
+
+            static float score(float[] s, float[] base, float[] w) {
+              return w[0] * s[0] / Math.max(1f, base[0]) + w[1] * s[1] / Math.max(1f, base[1]);
+            }
+
+            static void stat(Context c, String id, boolean win) {
+              SharedPreferences p = U.p(c);
+              p.edit().putInt("ts_t_" + id, p.getInt("ts_t_" + id, 0) + 1)
+                  .putInt("ts_w_" + id, p.getInt("ts_w_" + id, 0) + (win ? 1 : 0)).apply();
+            }
+
+            static void unsupported(Context c, String id) {
+              SharedPreferences p = U.p(c);
+              HashSet<String> s = new HashSet<String>(p.getStringSet("tune_unsup", new HashSet<String>()));
+              s.add(id);
+              p.edit().putStringSet("tune_unsup", s).apply();
+            }
+
+            static Methods.M groupMate(Set<String> active, Methods.M m) {
+              if (m.group == null) return null;
+              for (String a : active) {
+                Methods.M o = Methods.byId(a);
+                if (o != null && !o.id.equals(m.id) && m.group.equals(o.group)) return o;
+              }
+              return null;
+            }
+
+            static void run(Context c, int secs, String why) {
+              if (!busy.compareAndSet(false, true)) return;
+              cancel = false;
+              ArrayList<String> rep = new ArrayList<>();
+              try {
+                status = "conectando ao ADB…";
+                String id = Adb.run(c, 30000, "id");
+                if (!Adb.ok(id)) {
+                  U.log("Auto-testador: ADB indisponível — " + Opt.brief(id));
+                  status = "ADB indisponível";
+                  return;
+                }
+                SharedPreferences p = U.p(c);
+                float[] w = weights(c);
+                long end = SystemClock.elapsedRealtime() + secs * 1000L;
+                HashSet<String> active = new HashSet<String>(p.getStringSet("tune_active", new HashSet<String>()));
+                for (String a : new ArrayList<String>(active)) {
+                  Methods.M m = Methods.byId(a);
+                  if (m == null) active.remove(a);
+                  else if (!m.action()) Methods.apply(c, m);
+                }
+                U.log("Auto-testador (" + why + "): " + secs + " s, " + Methods.ALL.size() + " métodos no catálogo");
+                status = "medindo a base…";
+                nap(2500);
+                float[] b1 = sample(c);
+                nap(2000);
+                float[] b2 = sample(c);
+                final float[] base = {(b1[0] + b2[0]) / 2f, (b1[1] + b2[1]) / 2f};
+                float noise = Math.abs(score(b1, base, w) - score(b2, base, w));
+                float margin = Math.max(0.015f, Math.min(0.05f, noise * 1.5f));
+                float best = 1f;
+                HashSet<String> bestSet = new HashSet<String>(active);
+                U.log(String.format(Locale.US, "Base: RAM livre %.0f MB • CPU %.0f • margem %.1f%%", base[0], base[1], margin * 100f));
+                boolean abort = false;
+                int pass = 0;
+                while (!abort && !cancel && pass < 3 && SystemClock.elapsedRealtime() < end - 8000) {
+                  pass++;
+                  boolean accepted = false;
+                  for (Methods.M m : Methods.order(c, active)) {
+                    if (cancel || SystemClock.elapsedRealtime() > end - 8000) break;
+                    status = "passo " + pass + ": testando " + m.label;
+                    Methods.M prev = groupMate(active, m);
+                    if (prev != null) Methods.revert(c, prev);
+                    String out = Methods.apply(c, m);
+                    if (Methods.bad(out)) {
+                      if (!Adb.ok(out)) {
+                        U.log("Auto-testador: ADB caiu — " + Opt.brief(out));
+                        Methods.revert(c, m);
+                        if (prev != null) Methods.apply(c, prev);
+                        abort = true;
+                        break;
+                      }
+                      Methods.revert(c, m);
+                      if (prev != null) Methods.apply(c, prev);
+                      unsupported(c, m.id);
+                      U.log("— " + m.label + ": indisponível neste aparelho");
+                      continue;
+                    }
+                    nap(m.action() ? 3500 : 2200);
+                    float sc = score(sample(c), base, w);
+                    if (sc > best + margin) {
+                      String l = String.format(Locale.US, "✔ %s (+%.1f%%)", m.label, (sc - best) * 100f);
+                      U.log(l);
+                      rep.add(l);
+                      if (prev != null) active.remove(prev.id);
+                      active.add(m.id);
+                      best = sc;
+                      bestSet = new HashSet<String>(active);
+                      accepted = true;
+                      stat(c, m.id, true);
+                    } else {
+                      Methods.revert(c, m);
+                      if (prev != null) Methods.apply(c, prev);
+                      U.log("✖ " + m.label + " (sem ganho, desligado)");
+                      stat(c, m.id, false);
+                    }
+                  }
+                  // poda: o que continua ligado mas não contribui é desligado
+                  if (!abort && !cancel && SystemClock.elapsedRealtime() < end - 8000) {
+                    for (String a : new ArrayList<String>(active)) {
+                      Methods.M m = Methods.byId(a);
+                      if (m == null || m.action()) continue;
+                      if (cancel || SystemClock.elapsedRealtime() > end - 8000) break;
+                      status = "podando: " + m.label;
+                      Methods.revert(c, m);
+                      nap(2200);
+                      float sc = score(sample(c), base, w);
+                      if (sc >= best - margin * 0.5f) {
+                        active.remove(a);
+                        best = Math.max(best, sc);
+                        String l = "↩ " + m.label + " (não contribuía)";
+                        U.log(l);
+                        rep.add(l);
+                      } else {
+                        Methods.apply(c, m);
+                      }
+                    }
+                    bestSet = new HashSet<String>(active);
+                  }
+                  if (!accepted && pass >= 2) break;
+                }
+                // deixa exatamente o conjunto do pico aplicado
+                for (String a : new ArrayList<String>(active)) {
+                  if (!bestSet.contains(a)) {
+                    Methods.M m = Methods.byId(a);
+                    if (m != null) Methods.revert(c, m);
+                  }
+                }
+                for (String a : bestSet) {
+                  if (!active.contains(a)) {
+                    Methods.M m = Methods.byId(a);
+                    if (m != null && !m.action()) Methods.apply(c, m);
+                  }
+                }
+                status = "medindo o resultado final…";
+                nap(2000);
+                float[] fin = sample(c);
+                float ramGain = fin[0] - base[0];
+                float cpuGain = (fin[1] / Math.max(1f, base[1]) - 1f) * 100f;
+                p.edit().putStringSet("tune_active", bestSet).putLong("tune_last", System.currentTimeMillis())
+                    .putFloat("tune_peak", best).putBoolean("tune_pending", false).apply();
+                String sum = String.format(Locale.US, "Pico: %d métodos ativos • RAM %s%.0f MB • CPU %s%.1f%%",
+                    bestSet.size(), ramGain >= 0 ? "+" : "", ramGain, cpuGain >= 0 ? "+" : "", cpuGain);
+                U.log(sum);
+                rep.add(0, sum);
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < rep.size() && i < 14; i++) sb.append(rep.get(i)).append('\n');
+                p.edit().putString("tune_rep", sb.toString()).apply();
+                status = cancel ? "cancelado (pico aplicado)" : "concluído";
+              } catch (Throwable t) {
+                U.log("Auto-testador: erro " + t);
+                status = "erro";
+              } finally {
+                busy.set(false);
+              }
+            }
+
+            /** Reaplica o que já foi aprovado (device_config e propriedades somem ao reiniciar). */
+            static void reapply(Context c) {
+              if (!busy.compareAndSet(false, true)) return;
+              try {
+                String id = Adb.run(c, 20000, "id");
+                if (!Adb.ok(id)) return;
+                SharedPreferences p = U.p(c);
+                int n = 0;
+                for (String a : p.getStringSet("tune_active", new HashSet<String>())) {
+                  Methods.M m = Methods.byId(a);
+                  if (m != null && !m.action()) {
+                    Methods.apply(c, m);
+                    n++;
+                  }
+                }
+                if (p.getBoolean("render_on", false)) renderer(c, true);
+                reapplied = true;
+                U.log("Métodos reaplicados: " + n);
+              } catch (Throwable t) {
+                U.log("Reaplicar: " + t);
+              } finally {
+                busy.set(false);
+              }
+            }
+
+            static void undoAll(Context c) {
+              cancel = true;
+              for (int i = 0; i < 40 && busy.get(); i++) nap(500);
+              SharedPreferences p = U.p(c);
+              int n = 0;
+              for (String a : p.getStringSet("tune_active", new HashSet<String>())) {
+                Methods.M m = Methods.byId(a);
+                if (m != null && !m.action()) {
+                  Methods.revert(c, m);
+                  n++;
+                }
+              }
+              renderer(c, false);
+              p.edit().remove("tune_active").remove("tune_peak").remove("tune_rep").putBoolean("render_on", false).apply();
+              status = "parado";
+              U.log("Métodos desfeitos: " + n);
+            }
+
+            static void renderer(Context c, boolean on) {
+              String r = Adb.run(c, 15000, on ? "setprop debug.hwui.renderer skiagl" : "setprop debug.hwui.renderer \"\"");
+              U.log("Renderizador " + (on ? "leve (Skia GL)" : "padrão") + ": " + Opt.brief(r) + " (vale para apps abertos a partir de agora)");
+            }
+
+            /** Chamado a cada ciclo do serviço: reaplica após o boot e re-testa nos intervalos escolhidos. */
+            static void tick(final Context c, boolean screenOn) {
+              final SharedPreferences p = U.p(c);
+              boolean tuneOn = p.getBoolean("tune_on", false);
+              if (!tuneOn && !p.getBoolean("render_on", false)) return;
+              if (busy.get()) return;
+              long now = System.currentTimeMillis();
+              if (!reapplied) {
+                if (now - lastTry > 90000L) {
+                  lastTry = now;
+                  new Thread(new Runnable() {
+                    public void run() {
+                      reapply(c);
+                    }
+                  }).start();
+                }
+                return;
+              }
+              if (!tuneOn) return;
+              boolean pending = p.getBoolean("tune_pending", false);
+              int every = p.getInt("tune_every_h", 0);
+              boolean due = every > 0 && now - p.getLong("tune_last", 0) > every * 3600000L;
+              boolean calm = !screenOn || U.batt(c)[2] > 0;
+              if (!pending && !(due && calm && U.batt(c)[0] > 25f)) return;
+              if (now - lastTry < 120000L) return;
+              lastTry = now;
+              final int secs = p.getInt("tune_secs", 120);
+              final String why = pending ? "ligado agora" : "automático";
+              new Thread(new Runnable() {
+                public void run() {
+                  Tuner.run(c, secs, why);
+                }
+              }).start();
+            }
+
+            static String report(Context c) {
+              SharedPreferences p = U.p(c);
+              Set<String> act = p.getStringSet("tune_active", new HashSet<String>());
+              Set<String> un = p.getStringSet("tune_unsup", new HashSet<String>());
+              StringBuilder sb = new StringBuilder();
+              sb.append("Situação: ").append(busy.get() ? status : (status == null ? "parado" : status)).append('\n');
+              sb.append("Catálogo: ").append(Methods.ALL.size()).append(" métodos • ").append(un.size()).append(" indisponíveis neste aparelho\n");
+              sb.append("Ativos agora (").append(act.size()).append("): ");
+              if (act.isEmpty()) {
+                sb.append("nenhum");
+              } else {
+                boolean f = true;
+                for (String a : act) {
+                  Methods.M m = Methods.byId(a);
+                  if (m == null) continue;
+                  sb.append(f ? "" : ", ").append(m.label);
+                  f = false;
+                }
+              }
+              long last = p.getLong("tune_last", 0);
+              if (last > 0) sb.append("\nÚltimo teste: ").append(new SimpleDateFormat("dd/MM HH:mm", Locale.US).format(new Date(last)));
+              String rep = p.getString("tune_rep", "");
+              if (!rep.isEmpty()) sb.append("\n\n").append(rep.trim());
+              return sb.toString();
+            }
+          }
+          EOF_15
+          cat > app/src/main/java/com/turbo/a03/WifiAdb.java << 'EOF_16'
+          package com.turbo.a03;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.RemoteInput;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.drawable.Icon;
+          import android.net.nsd.NsdManager;
+          import android.net.nsd.NsdServiceInfo;
+          import android.os.Build;
+          import android.provider.Settings;
+          import android.util.Base64;
+          import io.github.muntashirakon.adb.AbsAdbConnectionManager;
+          import io.github.muntashirakon.adb.AdbStream;
+          import java.io.ByteArrayInputStream;
+          import java.io.ByteArrayOutputStream;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.math.BigInteger;
+          import java.security.KeyFactory;
+          import java.security.KeyPair;
+          import java.security.KeyPairGenerator;
+          import java.security.PrivateKey;
+          import java.security.cert.Certificate;
+          import java.security.cert.CertificateFactory;
+          import java.security.cert.X509Certificate;
+          import java.security.spec.PKCS8EncodedKeySpec;
+          import java.util.Date;
+          import org.bouncycastle.asn1.x500.X500Name;
+          import org.bouncycastle.cert.X509v3CertificateBuilder;
+          import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+          import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+          import org.bouncycastle.jce.provider.BouncyCastleProvider;
+          import org.bouncycastle.operator.ContentSigner;
+          import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+
+          /**
+           * ADB por Depuração sem fio (Android 11+), feito pelo próprio celular, sem PC:
+           * pareia com o código de 6 dígitos (digitado no aviso do Turbo), conecta por TLS e roda "shell:" como usuário shell.
+           */
+          final class WifiAdb {
+            static final String CH = "pair";
+            static volatile int pairPort = 0;
+            static volatile boolean alive = false;
+            static String lastErr = "";
+            static Mgr mgr;
+            static NsdManager.DiscoveryListener dl;
+
+            /** Gerenciador de conexão: guarda chave RSA e certificado para o aparelho continuar autorizado. */
+            static final class Mgr extends AbsAdbConnectionManager {
+              PrivateKey pk;
+              Certificate cert;
+
+              Mgr(Context c) throws Exception {
+                setApi(Build.VERSION.SDK_INT);
+                SharedPreferences p = U.p(c);
+                String k = p.getString("w_key", null), ce = p.getString("w_cert", null);
+                if (k != null && ce != null) {
+                  pk = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(Base64.decode(k, Base64.NO_WRAP)));
+                  cert = CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(Base64.decode(ce, Base64.NO_WRAP)));
+                } else {
+                  KeyPairGenerator g = KeyPairGenerator.getInstance("RSA");
+                  g.initialize(2048);
+                  KeyPair kp = g.generateKeyPair();
+                  pk = kp.getPrivate();
+                  X500Name nm = new X500Name("CN=Turbo");
+                  Date nb = new Date(System.currentTimeMillis() - 86400000L);
+                  Date na = new Date(System.currentTimeMillis() + 3650L * 86400000L);
+                  X509v3CertificateBuilder b = new JcaX509v3CertificateBuilder(nm, BigInteger.valueOf(System.currentTimeMillis()), nb, na, nm, kp.getPublic());
+                  BouncyCastleProvider bc = new BouncyCastleProvider();
+                  ContentSigner s = new JcaContentSignerBuilder("SHA256withRSA").setProvider(bc).build(pk);
+                  X509Certificate bcCert = new JcaX509CertificateConverter().setProvider(bc).getCertificate(b.build(s));
+                  cert = CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(bcCert.getEncoded()));
+                  p.edit().putString("w_key", Base64.encodeToString(pk.getEncoded(), Base64.NO_WRAP))
+                      .putString("w_cert", Base64.encodeToString(cert.getEncoded(), Base64.NO_WRAP)).apply();
+                }
+              }
+
+              @Override
+              protected PrivateKey getPrivateKey() {
+                return pk;
+              }
+
+              @Override
+              protected Certificate getCertificate() {
+                return cert;
+              }
+
+              @Override
+              protected String getDeviceName() {
+                return "turbo";
+              }
+            }
+
+            static boolean supported() {
+              return Build.VERSION.SDK_INT >= 30;
+            }
+
+            static boolean paired(Context c) {
+              return U.p(c).getBoolean("w_paired", false);
+            }
+
+            static synchronized Mgr mgr(Context c) throws Exception {
+              if (mgr == null) mgr = new Mgr(c.getApplicationContext());
+              return mgr;
+            }
+
+            static String exec(AbsAdbConnectionManager m, String cmd, final int timeoutMs) throws Exception {
+              final AdbStream st = m.openStream("shell:" + cmd);
+              final Thread w = new Thread(new Runnable() {
+                public void run() {
+                  try {
+                    Thread.sleep(timeoutMs);
+                    st.close();
+                  } catch (Throwable t) {
+                  }
+                }
+              });
+              w.start();
+              try {
+                InputStream in = st.openInputStream();
+                ByteArrayOutputStream o = new ByteArrayOutputStream();
+                byte[] b = new byte[8192];
+                int n;
+                while ((n = in.read(b)) > 0 && o.size() < (4 << 20)) o.write(b, 0, n);
+                return o.toString("UTF-8");
+              } finally {
+                w.interrupt();
+                try {
+                  st.close();
+                } catch (Throwable t) {
+                }
+              }
+            }
+
+            static void connectNow(Context c, Mgr m) throws Exception {
+              try {
+                Settings.Global.putInt(c.getContentResolver(), "adb_wifi_enabled", 1);
+              } catch (Throwable t) {
+              }
+              for (int i = 0; i < 2 && !alive; i++) {
+                try {
+                  m.connectTls(c, 8000);
+                  alive = exec(m, "echo ok", 5000).contains("ok");
+                } catch (Throwable t) {
+                  lastErr = String.valueOf(t.getMessage());
+                }
+              }
+              if (!alive) {
+                throw new IOException("Depuração sem fio indisponível: ligue o Wi-Fi e a \"Depuração sem fio\". " + lastErr);
+              }
+            }
+
+            /** Roda comandos no shell. Em erro retorna texto começando com "ERRO ADB". */
+            static synchronized String run(Context c, int timeoutMs, String... cmds) {
+              try {
+                Mgr m = mgr(c);
+                if (!alive) connectNow(c, m);
+                StringBuilder sb = new StringBuilder();
+                try {
+                  for (String s : cmds) sb.append(exec(m, s, timeoutMs));
+                } catch (Throwable e) {
+                  alive = false;
+                  connectNow(c, m);
+                  sb.setLength(0);
+                  for (String s : cmds) sb.append(exec(m, s, timeoutMs));
+                }
+                return sb.toString();
+              } catch (Throwable e) {
+                alive = false;
+                return "ERRO ADB: " + (e.getMessage() == null ? e.toString() : e.getMessage());
+              }
+            }
+
+            // ---------------- pareamento ----------------
+
+            static void startPairing(Context c) {
+              if (!supported()) {
+                U.log("Depuração sem fio exige Android 11 ou mais novo");
+                return;
+              }
+              final Context ac = c.getApplicationContext();
+              NotificationManager nm = (NotificationManager) ac.getSystemService(Context.NOTIFICATION_SERVICE);
+              nm.createNotificationChannel(new NotificationChannel(CH, "Pareamento ADB", NotificationManager.IMPORTANCE_HIGH));
+              pairPort = 0;
+              notifyPair(ac, "Abra \"Parear com código\" e digite aqui o código de 6 dígitos.");
+              discover(ac);
+            }
+
+            static void notifyPair(Context c, String text) {
+              Intent i = new Intent(c, PairReceiver.class);
+              int fl = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
+              PendingIntent pi = PendingIntent.getBroadcast(c, 7, i, fl);
+              RemoteInput ri = new RemoteInput.Builder("code").setLabel("Código de 6 dígitos").build();
+              Notification.Action ac = new Notification.Action.Builder(Icon.createWithResource(c, R.drawable.ic_bolt), "Digitar código", pi)
+                  .addRemoteInput(ri).build();
+              Notification n = new Notification.Builder(c, CH)
+                  .setSmallIcon(R.drawable.ic_bolt)
+                  .setContentTitle("Turbo • pareamento ADB")
+                  .setContentText(text)
+                  .setStyle(new Notification.BigTextStyle().bigText(text))
+                  .setOnlyAlertOnce(true)
+                  .setTimeoutAfter(180000)
+                  .addAction(ac)
+                  .build();
+              ((NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE)).notify(7, n);
+            }
+
+            static void doneNote(Context c, String text) {
+              Notification n = new Notification.Builder(c, CH)
+                  .setSmallIcon(R.drawable.ic_bolt)
+                  .setContentTitle("Turbo • ADB")
+                  .setContentText(text)
+                  .setTimeoutAfter(15000)
+                  .build();
+              ((NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE)).notify(7, n);
+            }
+
+            static void discover(final Context c) {
+              stopDiscovery(c);
+              final NsdManager nsd = (NsdManager) c.getSystemService(Context.NSD_SERVICE);
+              dl = new NsdManager.DiscoveryListener() {
+                public void onStartDiscoveryFailed(String t, int e) {
+                  U.log("Busca do pareamento falhou (" + e + "). Use o pareamento manual.");
+                }
+
+                public void onStopDiscoveryFailed(String t, int e) {
+                }
+
+                public void onDiscoveryStarted(String t) {
+                }
+
+                public void onDiscoveryStopped(String t) {
+                }
+
+                public void onServiceLost(NsdServiceInfo i) {
+                  pairPort = 0;
+                }
+
+                public void onServiceFound(NsdServiceInfo i) {
+                  try {
+                    nsd.resolveService(i, new NsdManager.ResolveListener() {
+                      public void onResolveFailed(NsdServiceInfo s, int e) {
+                      }
+
+                      public void onServiceResolved(NsdServiceInfo s) {
+                        pairPort = s.getPort();
+                        U.log("Serviço de pareamento encontrado (porta " + pairPort + ")");
+                      }
+                    });
+                  } catch (Throwable t) {
+                  }
+                }
+              };
+              try {
+                nsd.discoverServices("_adb-tls-pairing._tcp", NsdManager.PROTOCOL_DNS_SD, dl);
+              } catch (Throwable t) {
+                U.log("Busca do pareamento: " + t);
+              }
+            }
+
+            static void stopDiscovery(Context c) {
+              if (dl == null) return;
+              try {
+                ((NsdManager) c.getSystemService(Context.NSD_SERVICE)).stopServiceDiscovery(dl);
+              } catch (Throwable t) {
+              }
+              dl = null;
+            }
+
+            static void pairManual(Context c, int port, String code) {
+              pairPort = port;
+              pairFlow(c.getApplicationContext(), code);
+            }
+
+            /** Pareia com o código, conecta e já concede as permissões ao app. */
+            static void pairFlow(Context c, String code) {
+              try {
+                code = code == null ? "" : code.trim();
+                if (code.length() != 6) {
+                  notifyPair(c, "O código tem 6 números. Digite de novo.");
+                  return;
+                }
+                long end = System.currentTimeMillis() + 10000;
+                while (pairPort == 0 && System.currentTimeMillis() < end) Tuner.nap(300);
+                int port = pairPort;
+                if (port == 0) {
+                  notifyPair(c, "Não achei a porta de pareamento. Deixe a janela \"Parear com código\" aberta e digite de novo.");
+                  return;
+                }
+                U.log("Pareando na porta " + port + "…");
+                Mgr m = mgr(c);
+                synchronized (WifiAdb.class) {
+                  m.pair("127.0.0.1", port, code);
+                }
+                U.p(c).edit().putBoolean("w_paired", true).apply();
+                stopDiscovery(c);
+                alive = false;
+                U.log("Pareado! Conectando…");
+                String r = run(c, 20000, "id");
+                boolean ok = Adb.ok(r);
+                U.p(c).edit().putBoolean("adb_ok", ok).apply();
+                if (ok) {
+                  U.log("ADB sem fio conectado: " + Opt.brief(r));
+                  Opt.grantSelf(c);
+                  doneNote(c, "Conectado ✔ Permissões concedidas. Pode fechar as Opções do desenvolvedor.");
+                } else {
+                  U.log(Opt.brief(r));
+                  doneNote(c, "Pareou, mas não conectou: " + Opt.brief(r));
+                }
+              } catch (Throwable t) {
+                U.log("Pareamento falhou: " + t.getMessage());
+                notifyPair(c, "Falhou: " + t.getMessage() + ". Confira o código e tente de novo.");
+              }
+            }
+          }
+          EOF_16
+          cat > app/src/main/java/com/turbo/a03/PairReceiver.java << 'EOF_17'
+          package com.turbo.a03;
+
+          import android.app.RemoteInput;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.os.Bundle;
+
+          /** Recebe o código de pareamento digitado no aviso (RemoteInput) e conclui o pareamento em segundo plano. */
+          public class PairReceiver extends BroadcastReceiver {
+            @Override
+            public void onReceive(final Context c, Intent i) {
+              Bundle b = RemoteInput.getResultsFromIntent(i);
+              CharSequence cs = b == null ? null : b.getCharSequence("code");
+              final String code = cs == null ? "" : cs.toString();
+              final PendingResult pr = goAsync();
+              new Thread(new Runnable() {
+                public void run() {
+                  try {
+                    WifiAdb.pairFlow(c.getApplicationContext(), code);
+                  } finally {
+                    pr.finish();
+                  }
+                }
+              }).start();
+            }
+          }
+          EOF_17
+
+      - name: Aceitar licencas do SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+
+      - name: Compilar
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Renomear APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk Turbo.apk
+
+      - name: Guardar APK (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Turbo-APK
+          path: Turbo.apk
+
+      - name: Publicar APK em Releases (download direto)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: turbo-${{ github.run_number }}
+          name: Turbo ${{ github.run_number }}
+          files: Turbo.apk
